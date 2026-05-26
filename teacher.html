@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Peak Potentia — Teacher Portal</title>
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="teacher.css">
+</head>
+
+<body>
+  <div id="toast"></div>
+
+  <!-- LOGIN -->
+  <div id="s-login" class="screen active">
+    <div class="login-wrap">
+      <div class="login-deco"></div>
+      <div class="login-left">
+        <div class="login-brand">
+          <img
+            src="https://fr1ekw4xx.tribe.junction.express/uploads/2025/05-May/29-Thu/sm/header-icon_6838241632ce3.png"
+            alt="" style="width: 40px; height: 40px;">
+          <div class="login-brand-name">Peak <span>Potentia</span></div>
+        </div>
+        <div class="login-headline">Empower every<br><em>student</em> you<br>teach.</div>
+        <p class="login-sub">Your central hub for managing classes, tracking student progress, uploading assignments and
+          monitoring your earnings.</p>
+        <div class="login-tagline">✦ <em>Excellence in Academics and Research</em></div>
+        <div class="role-pills">
+          <div class="role-pill">Student</div>
+          <div class="role-pill active">Teacher</div>
+          <div class="role-pill">Admin</div>
+        </div>
+      </div>
+      <div class="login-right">
+        <div class="lr-title">Welcome back</div>
+        <div class="lr-tag">Sign in to your teacher portal</div>
+        <div class="teacher-badge">⭐ Teacher Access</div>
+        <label class="fl" for="t-user">Employee ID / Username</label>
+        <input id="t-user" class="fi" placeholder="" autocomplete="username"
+          onkeydown="if(event.key==='Enter')doLogin()">
+        <label class="fl" for="t-pass">Password</label>
+        <input id="t-pass" class="fi" type="password" placeholder="••••••••" autocomplete="current-password"
+          onkeydown="if(event.key==='Enter')doLogin()">
+        <button id="login-btn" class="login-btn" onclick="doLogin()">Sign In to Portal →</button>
+        <div id="login-err" class="login-err"></div>
+        <div class="login-note">Need help? <a href="#">Contact admin</a></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="s-dash" class="screen page">
+    <div class="topbar">
+      <div class="tb-brand">
+        <img src="https://fr1ekw4xx.tribe.junction.express/uploads/2025/05-May/29-Thu/sm/header-icon_6838241632ce3.png"
+          alt="" style="width: 30px; height: 30px;">
+
+        <div>
+          <div class="tb-name">Peak <span>Potentia</span></div>
+          <div class="tb-sub-txt">EXCELLENCE IN ACADEMICS</div>
+        </div>
+      </div>
+      <div class="tb-badge">⭐ Teacher Portal</div>
+      <div class="tb-sep"></div>
+      <div class="tb-user">
+        <div>
+          <div class="tb-uname" id="d-uname">—</div>
+          <div class="tb-urole" id="d-urole">—</div>
+        </div>
+        <div class="tb-av" id="d-uav">—</div>
+      </div>
+      <button class="signout-btn" onclick="doLogout()">Sign out</button>
+    </div>
+    <div class="pc">
+      <div class="page-eyebrow">Teacher Dashboard</div>
+      <div class="page-title">Good morning, <em id="dash-name">—</em> 👋</div>
+      <div class="page-sub" id="dash-sub">Loading…</div>
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-lbl">
+            <div class="stat-icon si-teal">₹</div>Monthly Earnings
+          </div>
+          <div class="stat-val c-teal" id="st-earn">—</div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill" id="st-earn-bar" style="background:var(--teal);width:0%"></div>
+          </div>
+          <div class="stat-sub" id="st-earn-sub">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-lbl">
+            <div class="stat-icon si-green">📊</div>Overall Avg Score
+          </div>
+          <div class="stat-val c-green" id="st-avg">—</div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill" id="st-avg-bar" style="background:var(--green);width:0%"></div>
+          </div>
+          <div class="stat-sub" id="st-avg-sub">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-lbl">
+            <div class="stat-icon si-blue">👥</div>Total Students
+          </div>
+          <div class="stat-val c-blue" id="st-stu">—</div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill" id="st-stu-bar" style="background:var(--blue);width:0%"></div>
+          </div>
+          <div class="stat-sub" id="st-stu-sub">—</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-lbl">
+            <div class="stat-icon si-yellow">📝</div>Assignments
+          </div>
+          <div class="stat-val c-yellow" id="st-asgn">—</div>
+          <div class="stat-bar">
+            <div class="stat-bar-fill" id="st-asgn-bar" style="background:var(--yellow);width:0%"></div>
+          </div>
+          <div class="stat-sub" id="st-asgn-sub">—</div>
+        </div>
+      </div>
+      <div class="pay-card">
+        <div class="pay-header">
+          <div class="pay-title">Monthly Payment Breakdown</div>
+          <div class="pay-tag" id="pay-month">—</div>
+        </div>
+        <div class="pay-grid" id="pay-grid">
+          <div class="loading-state">Loading…</div>
+        </div>
+      </div>
+      <div class="sec-lbl">Your Curriculums — Session 2025–26</div>
+      <div class="curr-grid" id="curr-grid">
+        <div class="loading-state" style="grid-column:1/-1">Loading subjects…</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- DETAIL -->
+  <div id="s-detail" class="screen page">
+    <div class="topbar">
+      <div class="tb-brand">
+        <svg width="34" height="34" viewBox="0 0 40 40" fill="none">
+          <rect width="40" height="40" rx="9" fill="#00B8B4" />
+          <path d="M20 8 L33 30 L7 30 Z" fill="white" />
+          <path d="M20 8 L24.5 16.5 L15.5 16.5 Z" fill="#F5C200" />
+        </svg>
+        <div>
+          <div class="tb-name">Peak <span>Potentia</span></div>
+          <div class="tb-sub-txt">TEACHER PORTAL</div>
+        </div>
+      </div>
+      <div class="tb-badge">⭐ Teacher Portal</div>
+      <button class="back-btn" onclick="goBack()">← Back</button>
+      <div class="breadcrumb"><span>Dashboard</span><span style="opacity:.4"> › </span><span class="bc-cur"
+          id="bc-name">—</span></div>
+      <div class="tb-sep"></div>
+      <div class="tb-user">
+        <div>
+          <div class="tb-uname" id="d2-uname">—</div>
+          <div class="tb-urole" id="d2-urole">—</div>
+        </div>
+        <div class="tb-av" id="d2-uav">—</div>
+      </div>
+      <button class="signout-btn" onclick="doLogout()">Sign out</button>
+    </div>
+    <div class="pc">
+      <div class="det-header">
+        <div>
+          <div class="det-badge" id="det-badge">—</div>
+          <div class="det-title" id="det-title">—</div>
+          <div class="det-meta" id="det-meta">—</div>
+        </div>
+        <div class="dqs">
+          <div class="dqs-box">
+            <div class="dqs-val c-blue" id="dqs-stu">—</div>
+            <div class="dqs-lbl">Students</div>
+          </div>
+          <div class="dqs-box">
+            <div class="dqs-val c-teal" id="dqs-avg">—</div>
+            <div class="dqs-lbl">Class Avg</div>
+          </div>
+          <div class="dqs-box">
+            <div class="dqs-val c-yellow" id="dqs-earn">—</div>
+            <div class="dqs-lbl">Received</div>
+          </div>
+          <div class="dqs-box">
+            <div class="dqs-val c-green" id="dqs-sub">—</div>
+            <div class="dqs-lbl">Submitted</div>
+          </div>
+        </div>
+      </div>
+      <div class="stu-card">
+        <div class="stu-card-hd">
+          <div class="card-title">Student Roster</div>
+          <input class="search-box-inp" placeholder="🔍 Search students…" oninput="filterStudents(this.value)">
+        </div>
+        <div style="overflow-x:auto">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Student</th>
+                <th>Roll No.</th>
+                <th>Avg Score</th>
+                <th>Fee Status</th>
+              </tr>
+            </thead>
+            <tbody id="stu-tbody">
+              <tr>
+                <td colspan="5" class="loading-state">Loading…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+      <div class="sec-lbl">Assignment Workspace</div>
+      <div class="aw">
+        <div class="aw-tabs">
+          <div class="aw-tab active" id="tab-upload" onclick="switchTab('upload')">📤 Upload Assignment</div>
+          <div class="aw-tab" id="tab-asgn" onclick="switchTab('asgn')">📋 Assignments</div>
+          <div class="aw-tab" id="tab-subs" onclick="switchTab('subs')">📥 Submissions</div>
+          <div class="aw-tab" id="tab-mark" onclick="switchTab('mark')">✏️ Mark Scores</div>
+          <div class="aw-tab" id="tab-notice" onclick="switchTab('notice')">📢 Notice Board</div>
+        </div>
+        <div class="aw-body">
+
+          <!-- ══ UPLOAD PANE ══ -->
+          <div id="pane-upload">
+            <div style="margin-bottom:20px;font-size:13.5px;color:var(--muted);line-height:1.6">Upload a new assignment
+              for <strong id="up-sub-label" style="color:var(--cream)">this subject</strong>. Students will see it
+              immediately.</div>
+            <div class="upload-grid">
+              <div class="fg"><label>Assignment Title</label><input id="a-title" class="fi2"
+                  placeholder="e.g. Chapter 5 Worksheet"></div>
+              <div class="fg"><label>Assignment Type</label><select id="a-type" class="fsel">
+                  <option>Problem Set</option>
+                  <option>Worksheet</option>
+                  <option>Practice Paper</option>
+                  <option>Lab Report</option>
+                  <option>Project</option>
+                </select></div>
+              <div class="fg"><label>Due Date</label><input id="a-due" class="fi2" type="date"></div>
+              <div class="fg"><label>Max Score</label><input id="a-max" class="fi2" type="number" value="50" min="1">
+              </div>
+            </div>
+            <label
+              style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;display:block">Instructions
+              / Notes</label>
+            <textarea id="a-inst" class="ftxt"
+              placeholder="Attempt all questions. Show all working steps clearly. Submit as a single PDF."></textarea>
+            <div id="drop-zone" class="drop-zone" onclick="document.getElementById('a-file').click()">
+              <div style="font-size:28px;margin-bottom:10px">📎</div>
+              <div style="font-size:14px;font-weight:500;margin-bottom:4px">Drag & drop your file here, or click to
+                browse</div>
+              <div style="font-size:12px;color:var(--muted)">PDF, DOCX, PPTX · Max 20MB</div>
+            </div>
+            <input id="a-file" type="file" accept=".pdf,.doc,.docx,.pptx,.ppt,.jpg,.png" style="display:none"
+              onchange="handleFile(this)">
+            <div id="file-prev" class="upl-file" style="display:none">
+              <div class="upl-file-icon">📄</div>
+              <div>
+                <div id="file-nm" style="font-size:13px;font-weight:500">—</div>
+                <div id="file-sz" style="font-size:11.5px;color:var(--muted)">—</div>
+              </div>
+              <button class="upl-rm" onclick="clearFile()">✕</button>
+            </div>
+            <button id="pub-btn" class="up-btn" onclick="publishAssignment()">Publish Assignment →</button>
+
+            <!-- ══ WORKSHEET LIBRARY — PUBLISHED ASSIGNMENTS ══ -->
+            <div id="pub-assign-section" style="margin-top:36px;display:none;">
+              <div style="border-top:2px solid rgba(0,184,180,0.18);padding-top:24px;margin-bottom:6px;">
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+                  <div style="display:flex;align-items:center;gap:10px;">
+                    <div
+                      style="width:34px;height:34px;background:rgba(0,184,180,0.12);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;">
+                      📋</div>
+                    <div>
+                      <div style="font-size:13.5px;font-weight:600;color:var(--cream);">Worksheet Library</div>
+                      <div style="font-size:11.5px;color:var(--muted);">Published assignments visible to students</div>
+                    </div>
+                  </div>
+                  <span id="pub-assign-count"
+                    style="font-size:12px;font-weight:600;color:var(--teal);background:rgba(0,184,180,0.1);padding:4px 12px;border-radius:20px;">—</span>
+                </div>
+              </div>
+              <div id="pub-assign-list"></div>
+            </div>
+          </div>
+
+          <!-- ══ ASSIGNMENTS LIBRARY PANE ══ -->
+          <div id="pane-asgn" style="display:none">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+              <div>
+                <div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;margin-bottom:4px;">📋
+                  Assignment Library</div>
+                <div style="font-size:12.5px;color:var(--muted);">Saari published worksheets — date-wise</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <select id="asgn-sort" class="fsel" style="width:auto;font-size:13px;" onchange="renderAssignList()">
+                  <option value="newest">Newest First</option>
+                  <option value="oldest">Oldest First</option>
+                  <option value="due">By Due Date</option>
+                </select>
+                <span id="asgn-total-badge"
+                  style="font-size:12px;font-weight:600;color:var(--teal);background:rgba(0,184,180,0.1);padding:5px 14px;border-radius:20px;">—</span>
+              </div>
+            </div>
+            <!-- Stats row -->
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:24px;"
+              id="asgn-stats-row">
+              <div
+                style="background:rgba(0,184,180,0.06);border:1px solid rgba(0,184,180,0.15);border-radius:10px;padding:14px 16px;">
+                <div
+                  style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">
+                  Total Published</div>
+                <div style="font-size:24px;font-weight:700;font-family:'Cormorant Garamond',serif;color:var(--teal);"
+                  id="asgn-stat-total">—</div>
+              </div>
+              <div
+                style="background:rgba(76,175,130,0.06);border:1px solid rgba(76,175,130,0.15);border-radius:10px;padding:14px 16px;">
+                <div
+                  style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">
+                  Active (Not Overdue)</div>
+                <div style="font-size:24px;font-weight:700;font-family:'Cormorant Garamond',serif;color:var(--green);"
+                  id="asgn-stat-active">—</div>
+              </div>
+              <div
+                style="background:rgba(232,146,74,0.06);border:1px solid rgba(232,146,74,0.15);border-radius:10px;padding:14px 16px;">
+                <div
+                  style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">
+                  Overdue</div>
+                <div style="font-size:24px;font-weight:700;font-family:'Cormorant Garamond',serif;color:var(--orange);"
+                  id="asgn-stat-over">—</div>
+              </div>
+            </div>
+            <div id="asgn-list">
+              <div class="loading-state">Loading assignments…</div>
+            </div>
+          </div>
+
+          <!-- ══ SUBMISSIONS PANE ══ -->
+          <div id="pane-subs" style="display:none">
+            <div
+              style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px;">
+              <div>
+                <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;margin-bottom:4px"
+                  id="s-asgn-title">Select assignment</div>
+                <div style="font-size:12.5px;color:var(--muted)" id="s-asgn-meta">—</div>
+              </div>
+              <select id="s-asgn-sel" class="fsel" style="width:auto;font-size:13px"
+                onchange="onSubsAssignChange(this.value)"></select>
+            </div>
+            <div style="display:flex;gap:24px;margin-bottom:16px;padding:12px 0;border-bottom:1px solid var(--border)">
+              <span id="sub-ct-y" style="font-size:13px;color:var(--teal)">✓ Submitted: 0</span>
+              <span id="sub-ct-n" style="font-size:13px;color:var(--red)">✗ Not submitted: 0</span>
+            </div>
+            <div class="filter-row">
+              <div class="fc active" onclick="setSubFilter('all',this)">All</div>
+              <div class="fc" onclick="setSubFilter('submitted',this)">Submitted</div>
+              <div class="fc" onclick="setSubFilter('not submitted',this)">Not Submitted</div>
+            </div>
+            <div id="subs-list">
+              <div class="loading-state">Select an assignment above</div>
+            </div>
+          </div>
+
+          <!-- ══ MARK PANE ══ -->
+          <div id="pane-mark" style="display:none">
+            <div class="mark-hd-row">
+              <div>
+                <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;margin-bottom:4px"
+                  id="m-asgn-title">Select assignment</div>
+                <div style="font-size:12.5px;color:var(--muted)" id="m-asgn-meta">—</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:12px">
+                <select id="m-asgn-sel" class="fsel" style="width:auto;font-size:13px"
+                  onchange="onMarkAssignChange(this.value)"></select>
+                <button class="save-btn" onclick="saveAllScores()">Save All Scores</button>
+              </div>
+            </div>
+            <div
+              style="display:grid;grid-template-columns:1.5fr .6fr .6fr 1.4fr .3fr;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);margin-bottom:4px">
+              <div
+                style="font-size:10.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">
+                Student</div>
+              <div
+                style="font-size:10.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">
+                Score</div>
+              <div
+                style="font-size:10.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">
+                Out of</div>
+              <div
+                style="font-size:10.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted)">
+                Remarks</div>
+              <div></div>
+            </div>
+            <div id="mark-rows"></div>
+          </div>
+
+          <!-- ══ NOTICE PANE ══ -->
+          <div id="pane-notice" style="display:none">
+            <div class="notice-form">
+              <div style="font-family:'Cormorant Garamond',serif;font-size:18px;font-weight:600;margin-bottom:16px">📢
+                Post New Notice</div>
+              <div class="fg" style="margin-bottom:14px"><label class="fl">Notice Title</label><input id="n-title"
+                  class="fi2" placeholder="e.g. Mid-term Exam Schedule"></div>
+              <div class="fg" style="margin-bottom:14px"><label class="fl">Content</label><textarea id="n-body"
+                  class="ftxt" placeholder="Notice ka content yahan likhein…"
+                  style="min-height:80px;margin-bottom:0"></textarea></div>
+              <div style="display:flex;align-items:center;gap:14px;margin-top:14px">
+                <select id="n-type" class="fsel" style="flex:1;max-width:200px">
+                  <option value="info">ℹ Info</option>
+                  <option value="warning">⚠ Warning</option>
+                  <option value="urgent">🚨 Urgent</option>
+                </select>
+                <button class="up-btn" onclick="postNotice()">Post Notice →</button>
+              </div>
+            </div>
+            <div class="notice-list-card">
+              <div class="notice-list-hd">Recent Notices (Sabhi Students Ko Dikh Raha Hai)</div>
+              <div id="notice-list">
+                <div class="loading-state">Loading…</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SUBMISSION REVIEW MODAL ══ -->
+  <div id="sub-review-modal"
+    style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 12px;">
+    <div
+      style="background:#0d2424;border:1px solid rgba(0,184,180,0.2);border-radius:16px;width:100%;max-width:920px;box-shadow:0 32px 100px rgba(0,0,0,0.7);overflow:hidden;">
+
+      <!-- Header -->
+      <div
+        style="display:flex;align-items:center;justify-content:space-between;padding:18px 24px;border-bottom:1px solid rgba(0,184,180,0.15);background:rgba(0,184,180,0.04);">
+        <div style="display:flex;align-items:center;gap:12px;">
+          <div
+            style="width:36px;height:36px;background:rgba(0,184,180,0.12);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;">
+            📄</div>
+          <div>
+            <div style="font-size:13px;font-weight:600;color:var(--cream);" id="srv-fname">Submission</div>
+            <div style="font-size:11.5px;color:var(--muted);">Student submission review</div>
+          </div>
+        </div>
+        <button onclick="closeSubReview()"
+          style="background:rgba(255,255,255,0.08);border:none;color:var(--muted);font-size:20px;cursor:pointer;border-radius:50%;width:36px;height:36px;display:flex;align-items:center;justify-content:center;">&times;</button>
+      </div>
+
+      <!-- Two-column layout: File | Comment -->
+      <div style="display:grid;grid-template-columns:1fr 340px;min-height:500px;">
+
+        <!-- Left: File viewer -->
+        <div style="padding:20px;border-right:1px solid rgba(0,184,180,0.1);background:#071919;">
+          <div id="srv-file-area" style="min-height:400px;display:flex;align-items:center;justify-content:center;">
+            <div style="color:var(--muted);font-size:13px;">Loading file…</div>
+          </div>
+        </div>
+
+        <!-- Right: Comment panel -->
+        <div style="padding:24px;display:flex;flex-direction:column;gap:16px;">
+          <div>
+            <div
+              style="font-size:12px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">
+              Your Comment / Feedback</div>
+            <div style="font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5;">
+              Yeh comment student ko unke portal mein dikh jayega.
+            </div>
+            <textarea id="srv-remark-input"
+              placeholder="e.g. Good attempt! Work on step 3 — show all working. Diagrams were neat. Overall: keep it up!"
+              style="width:100%;min-height:180px;padding:12px 14px;background:rgba(0,0,0,0.2);border:1px solid rgba(0,184,180,0.2);border-radius:10px;color:var(--cream);font-family:'DM Sans',sans-serif;font-size:13px;line-height:1.6;resize:vertical;outline:none;box-sizing:border-box;transition:border-color .2s;"
+              onfocus="this.style.borderColor='rgba(0,184,180,0.5)'"
+              onblur="this.style.borderColor='rgba(0,184,180,0.2)'"></textarea>
+            <div style="font-size:11px;color:var(--muted);margin-top:5px;text-align:right;" id="srv-char-count">0
+              characters</div>
+          </div>
+
+          <!-- Comment preview -->
+          <div
+            style="background:rgba(0,184,180,0.05);border:1px solid rgba(0,184,180,0.12);border-radius:10px;padding:12px 14px;">
+            <div
+              style="font-size:10.5px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">
+              👁 Student ko dikhega</div>
+            <div style="font-size:12.5px;color:var(--cream);line-height:1.6;font-style:italic;" id="srv-preview">Comment
+              type karo…</div>
+          </div>
+
+          <div style="margin-top:auto;">
+            <button id="srv-save-btn" onclick="saveSubRemark()"
+              style="width:100%;padding:12px;background:var(--teal);color:#fff;border:none;border-radius:10px;font-family:'DM Sans',sans-serif;font-size:14px;font-weight:700;cursor:pointer;transition:background .2s;"
+              onmouseenter="this.style.background='var(--teal-light)'"
+              onmouseleave="this.style.background='var(--teal)'">
+              💾 Save Comment
+            </button>
+            <button onclick="closeSubReview()"
+              style="width:100%;padding:10px;background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.1);border-radius:10px;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;margin-top:8px;">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Live preview script -->
+  <script>
+    document.addEventListener('input', function (e) {
+      if (e.target.id === 'srv-remark-input') {
+        const val = e.target.value.trim();
+        const prev = document.getElementById('srv-preview');
+        if (prev) prev.textContent = val || 'Comment type karo…';
+        const cc = document.getElementById('srv-char-count');
+        if (cc) cc.textContent = e.target.value.length + ' characters';
+      }
+    });
+  </script>
+
+  <script src="teacher.js"></script>
+</body>
+
+</html>

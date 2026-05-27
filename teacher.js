@@ -14,6 +14,17 @@ let CUR_STUDENTS = [],
   _subFilter = 'all';
 const AVC = ['#00B8B4', '#4c9af5', '#4caf82', '#e8924a', '#e07070', '#b47cef'];
 
+/* ════════════════════════════════════════════════
+   ✅ HELPER — Per-subject fee (new schema)
+════════════════════════════════════════════════ */
+function getSubjectFee(subject, classType = 'group') {
+  if (!subject) return 0;
+  if (classType === 'individual') {
+    return subject.fee_individual_inr || subject.fee_inr || 0;
+  }
+  return subject.fee_group_inr || subject.fee_inr || 0;
+}
+
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
   document.getElementById(id).classList.add('active');
@@ -154,23 +165,21 @@ function doLogout() {
   showScreen('s-login');
 }
 
-/* ── DASHBOARD ── */
-function setTxt(id, txt) {
-  const el = document.getElementById(id);
-  if (el) {
-    el.innerText = txt;
-  }
-}
+/* ════════════════════════════════════════════════
+   ✅ FIXED loadDashboard — Saare enrollments lo
+   (sirf active nahi, pending bhi)
+════════════════════════════════════════════════ */
 async function loadDashboard() {
   setTopbars();
   setTxt('dash-name', TEACHER.full_name);
-  console.log(TEACHER);
+  console.log('TEACHER:', TEACHER);
   showScreen('s-dash');
   if (!IS_LIVE) {
     toast('⚠ Supabase se connect nahi ho pa raha.', 'err');
     return;
   }
   setTxt('dash-sub', 'Loading your subjects…');
+
   const {
     data: allSubs,
     error
@@ -187,26 +196,37 @@ async function loadDashboard() {
     updateStats([]);
     return;
   }
-  /* Payment_status accepted values: active, paid, completed, success, confirmed */
-  const PAID_ST = new Set(['active', 'paid', 'completed', 'success', 'confirmed']);
+
+  const PAID_ST = new Set(['active', 'paid', 'completed', 'success', 'confirmed', 'verified']);
 
   const enriched = await Promise.all(subs.map(async s => {
+    /* ✅ SAARE enrollments lo (active + pending) */
     const [{
-      count: totEnroll
-    }, {
-      data: activeE
-    }, {
-      data: scores
-    }, {
-      count: aCount
-    }, {
-      data: payRecs
-    }] = await Promise.all([
+        count: totEnroll
+      },
+      {
+        data: allEnrolls
+      },
+      {
+        data: scores
+      },
+      {
+        count: aCount
+      },
+      {
+        data: payRecs
+      }
+    ] = await Promise.all([
       sb.from('student_subjects').select('*', {
         count: 'exact',
         head: true
       }).eq('subject_id', s.id),
-      sb.from('student_subjects').select('payment_status, is_active').eq('subject_id', s.id).eq('is_active', true),
+
+      /* ✅ Sirf is_active nahi — saare enrollments */
+      sb.from('student_subjects')
+      .select('payment_status, is_active, student_id, class_type')
+      .eq('subject_id', s.id),
+
       sb.from('assessments').select('student_score').eq('subject_id', s.id),
       sb.from('assignments').select('*', {
         count: 'exact',
@@ -215,13 +235,23 @@ async function loadDashboard() {
       sb.from('payments').select('amount_inr, status').eq('subject_id', s.id),
     ]);
 
-    /* Active students count */
-    const active = (activeE || []).length;
+    /* Active vs pending counts */
+    const enrolls = allEnrolls || [];
+    const activeEnrolls = enrolls.filter(e => e.is_active === true);
+    const pendingEnrolls = enrolls.filter(e => !e.is_active && (e.payment_status === 'pending'));
 
-    /* Paid = flexible status check on student_subjects */
-    const paid = (activeE || []).filter(e => PAID_ST.has((e.payment_status || '').toLowerCase())).length;
+    const active = activeEnrolls.length;
+    const pending = pendingEnrolls.length;
+    const paid = activeEnrolls.filter(e => PAID_ST.has((e.payment_status || '').toLowerCase())).length;
 
-    /* Actual received from payments table (completed/active payments) */
+    /* ✅ Expected fee — saare active+pending students ke liye */
+    let expectedTotal = 0;
+    [...activeEnrolls, ...pendingEnrolls].forEach(e => {
+      const ct = e.class_type || 'group';
+      expectedTotal += getSubjectFee(s, ct);
+    });
+
+    /* Actual received from payments */
     const received = (payRecs || [])
       .filter(p => PAID_ST.has((p.status || '').toLowerCase()))
       .reduce((sum, p) => sum + (Number(p.amount_inr) || 0), 0);
@@ -233,10 +263,13 @@ async function loadDashboard() {
       ...s,
       _tot: totEnroll || 0,
       _active: active,
+      _pending: pending,
       _paid: paid,
       _received: received,
+      _expected: expectedTotal,
       _avg: avg,
-      _asgn: aCount || 0
+      _asgn: aCount || 0,
+      _enrollments: enrolls /* ✅ Sab enrollments */
     };
   }));
   SUBJECTS = enriched;
@@ -251,30 +284,32 @@ function renderDashboard() {
 }
 
 function updateStats(list) {
-  const totStu = list.reduce((a, s) => a + (s._active || 0), 0);
+  /* ✅ Total students = active + pending */
+  const totStu = list.reduce((a, s) => a + (s._active || 0) + (s._pending || 0), 0);
   const totPaid = list.reduce((a, s) => a + (s._paid || 0), 0);
-  const totExp = list.reduce((a, s) => a + (s._active || 0) * (s.fee_inr || 0), 0);
-  /* Use actual received from payments table if available, else estimate from paid count */
-  const totRec = list.reduce((a, s) => {
-    if (s._received !== undefined) return a + (s._received || 0);
-    return a + (s._paid || 0) * (s.fee_inr || 0);
-  }, 0);
+  const totExp = list.reduce((a, s) => a + (s._expected || 0), 0);
+  const totRec = list.reduce((a, s) => a + (s._received || 0), 0);
   const totA = list.reduce((a, s) => a + (s._asgn || 0), 0);
   const avgs = list.filter(s => s._avg > 0).map(s => s._avg);
   const overAvg = avgs.length ? Math.round(avgs.reduce((a, b) => a + b, 0) / avgs.length) : 0;
   const paidPct = totExp > 0 ? Math.round(totRec / totExp * 100) : 0;
+
   setTxt('st-earn', `₹${(totRec / 1000).toFixed(1)}k`);
   setW('st-earn-bar', paidPct + '%');
   setTxt('st-earn-sub', `of <b>₹${(totExp / 1000).toFixed(1)}k</b> expected · ${paidPct}% collected`);
+
   setTxt('st-avg', overAvg ? overAvg + '%' : '—');
   setW('st-avg-bar', overAvg + '%');
   setTxt('st-avg-sub', `across <b>${list.length} classes</b> · ${totStu} students`);
+
   setTxt('st-stu', totStu);
   setW('st-stu-bar', totStu > 0 ? Math.min(100, Math.round(totPaid / totStu * 100)) + '%' : '0%');
   setTxt('st-stu-sub', `<b>${totPaid} paid</b> · ${totStu - totPaid} pending fee`);
+
   setTxt('st-asgn', totA);
   setW('st-asgn-bar', totA > 0 ? Math.min(100, totA * 8) + '%' : '0%');
   setTxt('st-asgn-sub', `published to students`);
+
   const now = new Date();
   setTxt('pay-month', `${now.toLocaleString('default', { month: 'long' })} ${now.getFullYear()}`);
   setTxt('dash-sub', `${now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · ${list.length} subject${list.length !== 1 ? 's' : ''} assigned`);
@@ -287,16 +322,27 @@ function renderPayBreakdown(list) {
     return;
   }
   g.innerHTML = list.map(s => {
-    const exp = (s._active || 0) * (s.fee_inr || 0);
-    /* Use actual received from payments table if available */
-    const rec = s._received !== undefined ? (s._received || 0) : (s._paid || 0) * (s.fee_inr || 0);
+    const exp = s._expected || 0;
+    const rec = s._received || 0;
     const pct = exp > 0 ? Math.round(rec / exp * 100) : 0;
     const fc = pct >= 100 ? '' : pct >= 70 ? 'partial' : 'low';
+
+    const enrollments = s._enrollments || [];
+    const groupCount = enrollments.filter(e => (e.class_type || 'group') === 'group').length;
+    const indCount = enrollments.length - groupCount;
+    const breakdown = (indCount > 0 && groupCount > 0) ?
+      `${groupCount} Group · ${indCount} 1-on-1` :
+      (indCount > 0 ? `${indCount} 1-on-1` : `${groupCount} Group`);
+
+    /* ✅ Total students = active + pending */
+    const totalStudents = (s._active || 0) + (s._pending || 0);
+
     return `<div class="pci"><div class="pci-board">${s.board || '—'} · ${s.grade || '—'}</div>
       <div class="pci-name">${s.name}</div>
+      <div class="pci-row"><span class="pci-key">Mix</span><span class="pci-val" style="color:var(--teal);font-size:12px;">${breakdown}</span></div>
       <div class="pci-row"><span class="pci-key">Expected</span><span class="pci-val">₹${exp.toLocaleString('en-IN')}</span></div>
       <div class="pci-row"><span class="pci-key">Received</span><span class="pci-val" style="color:${pct >= 100 ? 'var(--green)' : 'var(--teal)'}">₹${rec.toLocaleString('en-IN')}</span></div>
-      <div class="pci-row"><span class="pci-key">Students paid</span><span class="pci-val">${s._paid || 0} / ${s._active || 0}</span></div>
+      <div class="pci-row"><span class="pci-key">Students paid</span><span class="pci-val">${s._paid || 0} / ${totalStudents}</span></div>
       <div class="pci-bar"><div class="pci-fill ${fc}" style="width:${pct}%"></div></div>
     </div>`;
   }).join('');
@@ -311,30 +357,28 @@ function renderCurrGrid(list) {
   g.innerHTML = list.map(s => {
     const b = bc(s.board);
     const avgC = s._avg >= 75 ? 'var(--green)' : 'var(--teal)';
-    const paidC = (s._paid === s._active && s._active > 0) ? 'var(--green)' : 'var(--orange)';
+    const totalStudents = (s._active || 0) + (s._pending || 0);
+    const paidC = (s._paid === totalStudents && totalStudents > 0) ? 'var(--green)' : 'var(--orange)';
+    const earnings = s._received || 0;
     return `<div class="curr-card" onclick="openSubject('${s.id}')">
       <div class="cc-accent ${b}"></div>
       <div class="cc-board-tag ${b}">${s.board || '—'} · ${s.grade || '—'}</div>
       <div class="cc-name">${s.name}</div>
       <div class="cc-sub">${s.code || ''} · Academic Year 2025–26</div>
       <div class="cc-stats">
-        <div class="cc-stat"><div class="cc-stat-lbl">Students</div><div class="cc-stat-val" style="color:var(--blue)">${s._active || 0}</div></div>
+        <div class="cc-stat"><div class="cc-stat-lbl">Students</div><div class="cc-stat-val" style="color:var(--blue)">${totalStudents}</div></div>
         <div class="cc-stat"><div class="cc-stat-lbl">Avg Score</div><div class="cc-stat-val" style="color:${avgC}">${s._avg ? s._avg + '%' : '—'}</div></div>
-        <div class="cc-stat"><div class="cc-stat-lbl">Fees Paid</div><div class="cc-stat-val" style="color:${paidC}">${s._paid || 0}/${s._active || 0}</div></div>
-        <div class="cc-stat"><div class="cc-stat-lbl">Earnings</div><div class="cc-stat-val" style="color:var(--teal)">₹${(((s._paid || 0) * (s.fee_inr || 0)) / 1000).toFixed(1)}k</div></div>
+        <div class="cc-stat"><div class="cc-stat-lbl">Fees Paid</div><div class="cc-stat-val" style="color:${paidC}">${s._paid || 0}/${totalStudents}</div></div>
+        <div class="cc-stat"><div class="cc-stat-lbl">Earnings</div><div class="cc-stat-val" style="color:var(--teal)">₹${(earnings / 1000).toFixed(1)}k</div></div>
       </div>
-      ${s._asgn > 0 ? `<div class="cc-pending">📝 ${s._asgn} assignment${s._asgn !== 1 ? 's' : ''}</div>` : ''}
+      ${s._pending > 0 ? `<div class="cc-pending">⏳ ${s._pending} pending verification</div>` : ''}
+      ${s._asgn > 0 ? `<div class="cc-pending" style="margin-top:6px;">📝 ${s._asgn} assignment${s._asgn !== 1 ? 's' : ''}</div>` : ''}
     </div>`;
   }).join('');
 }
 
 /* ══════════════════════════════════════════════════════════════
-   openSubject — 5-step student loading
-   Step 1: Assignments PEHLE (submission query ke liye IDs chahiye)
-   Step 2: Enrolled students from student_subjects
-   Step 3: Students from submissions (jo enrolled nahi par submit kiya)
-   Step 4: Profiles fallback (RLS ke liye)
-   Step 5: Avg scores per student
+   ✅ FIXED openSubject — Pending students bhi load karo
 ══════════════════════════════════════════════════════════════ */
 async function openSubject(id) {
   CURR = SUBJECTS.find(s => s.id === id);
@@ -357,15 +401,16 @@ async function openSubject(id) {
   switchTab('upload');
 
   if (!IS_LIVE) {
-    toast('⚠ Supabase connection nahi hai. SUPABASE_URL check karo.', 'err');
+    toast('⚠ Supabase connection nahi hai.', 'err');
     return;
   }
 
-  /* ── Step 1: Assignments PEHLE load karo ── */
+  /* Step 1: Assignments */
   const {
     data: asgns
   } = await sb.from('assignments').select('*')
-    .eq('subject_id', CURR.id).eq('status', 'published').order('created_at', {
+    .eq('subject_id', CURR.id).eq('status', 'published')
+    .order('created_at', {
       ascending: false
     });
   CUR_ASSIGNS = asgns || [];
@@ -373,22 +418,29 @@ async function openSubject(id) {
   populateAssignSels();
   renderPublishedList();
 
-  /* ── Step 2: Enrolled students from student_subjects ── */
+  /* ✅ Step 2: ALL enrolled students (active + pending)
+     Removed: .eq('is_active', true) filter
+     Added: class_type from student_subjects (NOT profiles)
+  */
   const {
     data: en
   } = await sb.from('student_subjects')
-    .select('student_id, payment_status, is_active, profiles(id, full_name, username, roll_number, class, board)')
-    .eq('subject_id', CURR.id).eq('is_active', true);
+    .select('student_id, payment_status, is_active, class_type, profiles(id, full_name, username, roll_number, class, board)')
+    .eq('subject_id', CURR.id);
+
+  console.log('[openSubject] Enrollments fetched:', en);
 
   const rawStudents = (en || []).map(e => ({
     ...(e.profiles || {}),
     id: (e.profiles && e.profiles.id) || e.student_id,
     _pay: e.payment_status,
+    _is_active: e.is_active,
+    _class_type: e.class_type || 'group',
+    /* ✅ From student_subjects */
     _avg: null
   }));
 
-  /* ── Step 3: Students from submissions bhi lo
-     (Jo student_subjects mein nahi hain but unhone worksheet submit ki) ── */
+  /* Step 3: Submissions ke through bhi students */
   if (CUR_ASSIGNS.length) {
     const assignIds = CUR_ASSIGNS.map(a => a.id);
     const {
@@ -408,6 +460,8 @@ async function openSubject(id) {
           roll_number: pr.roll_number || null,
           class: pr.class || null,
           board: pr.board || null,
+          _class_type: 'group',
+          _is_active: false,
           _pay: 'pending',
           _avg: null
         });
@@ -416,7 +470,7 @@ async function openSubject(id) {
     });
   }
 
-  /* ── Step 4: Profiles join fail (RLS) → alag se fetch ── */
+  /* Step 4: Profiles fallback (RLS) */
   if (rawStudents.some(s => !s.full_name)) {
     const ids = rawStudents.map(s => s.id).filter(Boolean);
     if (ids.length) {
@@ -428,13 +482,20 @@ async function openSubject(id) {
         const pm = {};
         profs.forEach(p => pm[p.id] = p);
         rawStudents.forEach((s, i) => {
-          if (pm[s.id]) Object.assign(rawStudents[i], pm[s.id]);
+          if (pm[s.id]) {
+            const orig = rawStudents[i];
+            Object.assign(rawStudents[i], pm[s.id]);
+            /* Preserve class_type from student_subjects */
+            rawStudents[i]._class_type = orig._class_type;
+            rawStudents[i]._is_active = orig._is_active;
+            rawStudents[i]._pay = orig._pay;
+          }
         });
       }
     }
   }
 
-  /* ── Step 5: Avg scores per student from assessments ── */
+  /* Step 5: Avg scores */
   CUR_STUDENTS = await Promise.all(rawStudents.map(async s => {
     if (!s.id) return s;
     const {
@@ -448,6 +509,8 @@ async function openSubject(id) {
     };
   }));
 
+  console.log('[openSubject] Total students loaded:', CUR_STUDENTS.length);
+
   renderStudentTable();
   updateDetStats();
   await loadNotices();
@@ -458,13 +521,25 @@ function updateDetStats() {
   const avgs = CUR_STUDENTS.filter(s => s._avg != null).map(s => s._avg);
   const avg = avgs.length ? Math.round(avgs.reduce((a, b) => a + b, 0) / avgs.length) : 0;
   setTxt('dqs-avg', avg ? avg + '%' : '—');
-  const paid = CUR_STUDENTS.filter(s => s._pay === 'active').length;
-  const earn = paid * (CURR.fee_inr || 0);
+
+  let earn = 0;
+  if (CURR && CURR._received !== undefined) {
+    earn = CURR._received;
+  } else {
+    CUR_STUDENTS.forEach(s => {
+      if (s._pay === 'active' || s._is_active === true) {
+        const ct = s._class_type || 'group';
+        earn += getSubjectFee(CURR, ct);
+      }
+    });
+  }
   setTxt('dqs-earn', earn > 0 ? '₹' + (earn / 1000).toFixed(1) + 'k' : '₹0');
   setTxt('dqs-sub', '—');
 }
 
-/* ── Student Roster Table (naam + username + roll) ── */
+/* ════════════════════════════════════════════════
+   ✅ renderStudentTable — Show ALL students with status
+════════════════════════════════════════════════ */
 function renderStudentTable(filter = '') {
   const tbody = _('stu-tbody');
   const rows = CUR_STUDENTS.filter(s =>
@@ -478,14 +553,30 @@ function renderStudentTable(filter = '') {
     return;
   }
   tbody.innerHTML = rows.map((s, i) => {
-    const av = AVC[i % AVC.length],
-      iv = ini(s.full_name);
-    const sc = s._avg,
-      bcc = sc >= 80 ? 'high' : sc >= 65 ? 'mid' : 'low';
-    const paid = s._pay === 'active',
-      pend = s._pay === 'pending';
-    const ptag = paid ? '✓ Paid' : pend ? 'Pending' : 'Overdue';
-    const pcls = paid ? 'paid' : pend ? 'pending' : 'overdue';
+    const av = AVC[i % AVC.length];
+    const iv = ini(s.full_name);
+    const sc = s._avg;
+    const bcc = sc >= 80 ? 'high' : sc >= 65 ? 'mid' : 'low';
+
+    /* ✅ Payment status logic */
+    const isActive = s._is_active === true;
+    const isPending = !isActive && (s._pay === 'pending');
+    let ptag, pcls;
+    if (isActive) {
+      ptag = '✓ Paid';
+      pcls = 'paid';
+    } else if (isPending) {
+      ptag = '⏳ Pending';
+      pcls = 'pending';
+    } else {
+      ptag = 'Inactive';
+      pcls = 'overdue';
+    }
+
+    const ct = s._class_type || 'group';
+    const ctLabel = ct === 'individual' ? '1-on-1' : 'Group';
+    const ctColor = ct === 'individual' ? 'var(--yellow)' : 'var(--teal)';
+
     return `<tr>
       <td style="color:var(--muted);width:36px">${String(i + 1).padStart(2, '0')}</td>
       <td>
@@ -493,7 +584,7 @@ function renderStudentTable(filter = '') {
           <div class="s-av" style="background:${av}">${iv}</div>
           <div>
             <div style="font-weight:500;">${s.full_name || '—'}</div>
-            ${s.username ? `<div style="font-size:11px;color:var(--muted);">@${s.username}</div>` : ''}
+            ${s.username ? `<div style="font-size:11px;color:var(--muted);">@${s.username} · <span style="color:${ctColor};">${ctLabel}</span></div>` : `<div style="font-size:11px;color:${ctColor};">${ctLabel}</div>`}
           </div>
         </div>
       </td>
@@ -508,9 +599,6 @@ function filterStudents(v) {
   renderStudentTable(v);
 }
 
-/* ══════════════════════════════════════════════════════════════
-   renderPublishedList — Upload tab ke neeche chhoti list
-══════════════════════════════════════════════════════════════ */
 function renderPublishedList() {
   const section = _('pub-assign-section');
   const listEl = _('pub-assign-list');
@@ -549,11 +637,6 @@ function renderPublishedList() {
   }).join('');
 }
 
-/* ══════════════════════════════════════════════════════════════
-   renderAssignList — NEW: Assignments Library tab
-   Saari published worksheets date-wise, full details
-   File open link + View Submissions + Mark Scores buttons
-══════════════════════════════════════════════════════════════ */
 function renderAssignList() {
   const listEl = _('asgn-list');
   const badge = _('asgn-total-badge');
@@ -575,7 +658,6 @@ function renderAssignList() {
     return;
   }
 
-  /* Sort */
   const sortSel = _('asgn-sort');
   const sortVal = sortSel ? sortSel.value : 'newest';
   const sorted = [...CUR_ASSIGNS].sort((a, b) => {
@@ -584,7 +666,6 @@ function renderAssignList() {
     return new Date(b.created_at) - new Date(a.created_at);
   });
 
-  /* Stats */
   const now = new Date();
   const nOver = sorted.filter(a => new Date(a.due_date) < now).length;
   const nActive = sorted.length - nOver;
@@ -593,7 +674,6 @@ function renderAssignList() {
   if (stAct) stAct.textContent = nActive;
   if (stOver) stOver.textContent = nOver;
 
-  /* Type styling */
   const typeClr = {
     'Worksheet': {
       bg: 'rgba(0,184,180,0.15)',
@@ -636,8 +716,6 @@ function renderAssignList() {
     return `
     <div style="background:var(--card2);border:1px solid var(--border);border-radius:14px;padding:20px 22px;margin-bottom:14px;transition:border-color .2s;"
          onmouseenter="this.style.borderColor='rgba(0,184,180,0.35)'" onmouseleave="this.style.borderColor='var(--border)'">
-
-      <!-- Title row -->
       <div style="display:flex;align-items:flex-start;gap:14px;margin-bottom:14px;">
         <div style="width:42px;height:42px;background:${tc.bg};border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0;">📝</div>
         <div style="flex:1;min-width:0;">
@@ -654,13 +732,9 @@ function renderAssignList() {
         </div>
         <div style="font-size:10.5px;font-weight:700;color:var(--green);background:rgba(76,175,130,0.1);padding:4px 10px;border-radius:8px;flex-shrink:0;">✓ Published</div>
       </div>
-
-      <!-- Instructions -->
       ${a.instructions
         ? `<div style="font-size:12.5px;color:var(--muted);line-height:1.65;margin-bottom:14px;padding:10px 14px;background:rgba(0,0,0,0.12);border-radius:8px;border-left:3px solid rgba(0,184,180,0.25);">${a.instructions}</div>`
         : ''}
-
-      <!-- File attachment -->
       ${a.file_url
         ? `<div style="margin-bottom:14px;">
              <a href="${a.file_url}" target="_blank"
@@ -671,8 +745,6 @@ function renderAssignList() {
              <span style="font-size:11.5px;color:var(--muted);margin-left:10px;">Click to open / download</span>
            </div>`
         : `<div style="font-size:12px;color:var(--muted);margin-bottom:14px;font-style:italic;">📎 No file attached to this assignment</div>`}
-
-      <!-- Action buttons -->
       <div style="display:flex;gap:10px;flex-wrap:wrap;padding-top:10px;border-top:1px solid rgba(0,184,180,0.08);">
         <button onclick="switchTab('subs');setSubAssignment('${a.id}')"
           style="padding:8px 18px;background:transparent;color:var(--teal);border:1px solid var(--teal);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;transition:all .2s;"
@@ -689,7 +761,6 @@ function renderAssignList() {
   }).join('');
 }
 
-/* Submissions tab mein specific assignment select karo */
 function setSubAssignment(aid) {
   SEL_ASSIGN = CUR_ASSIGNS.find(a => a.id === aid) || SEL_ASSIGN;
   populateAssignSels();
@@ -698,7 +769,6 @@ function setSubAssignment(aid) {
   loadSubmissions(aid);
 }
 
-/* ── TABS — now includes 'asgn' ── */
 function switchTab(t) {
   ['upload', 'asgn', 'subs', 'mark', 'notice'].forEach(x => {
     const tab = _('tab-' + x);
@@ -713,7 +783,6 @@ function switchTab(t) {
   if (t === 'notice') loadNotices();
 }
 
-/* ── PUBLISH ASSIGNMENT ── */
 function handleFile(inp) {
   const f = inp.files[0];
   if (!f) return;
@@ -768,7 +837,6 @@ async function publishAssignment() {
         return;
       }
       fileUrl = sb.storage.from('peak-assignments').getPublicUrl(path).data.publicUrl || '';
-      if (!fileUrl) toast('File URL nahi mili — bucket public set hai?', 'warn');
     } catch (uploadErr) {
       toast('Upload error: ' + uploadErr.message, 'err');
       btn.disabled = false;
@@ -824,7 +892,6 @@ function clearAssignFm() {
   clearFile();
 }
 
-/* ── SUBMISSIONS ── */
 function populateAssignSels() {
   const opts = CUR_ASSIGNS.length ? CUR_ASSIGNS.map(a => `<option value="${a.id}">${a.title}</option>`).join('') : '<option value="">No assignments</option>';
   ['s-asgn-sel', 'm-asgn-sel'].forEach(id => {
@@ -852,9 +919,6 @@ function onSubsAssignChange(id) {
   loadSubmissions(id);
 }
 
-/* ══════════════════════════════════════════════════════════════
-   loadSubmissions — naam + username + roll (3-step fallback)
-══════════════════════════════════════════════════════════════ */
 async function loadSubmissions(aid) {
   SEL_ASSIGN = CUR_ASSIGNS.find(a => a.id === aid) || SEL_ASSIGN;
   if (!SEL_ASSIGN) return;
@@ -896,22 +960,7 @@ async function loadSubmissions(aid) {
         }
       });
     }
-    if (CUR_STUDENTS.some(s => !s.full_name)) {
-      const ids = CUR_STUDENTS.map(s => s.id).filter(Boolean);
-      if (ids.length) {
-        const {
-          data: profs
-        } = await sb.from('profiles').select('id, full_name, username, roll_number, class, board').in('id', ids);
-        const pm = {};
-        (profs || []).forEach(p => pm[p.id] = p);
-        CUR_STUDENTS = CUR_STUDENTS.map(s => pm[s.id] ? {
-          ...s,
-          ...pm[s.id]
-        } : s);
-        renderStudentTable();
-      }
-    }
-  } /* IS_LIVE only */
+  }
   CUR_SUBS[aid] = sm;
   renderSubList(sm);
   setTxt('dqs-sub', Object.keys(sm).length);
@@ -925,10 +974,6 @@ function setSubFilter(f, el) {
   renderSubList(sm);
 }
 
-/* ══════════════════════════════════════════════════════════════
-   renderSubList — naam, @username, Roll No., file, button
-   Green = Submitted | Red = Not Submitted
-══════════════════════════════════════════════════════════════ */
 function renderSubList(sm) {
   const list = _('subs-list');
   const submittedArr = Object.values(sm);
@@ -949,7 +994,6 @@ function renderSubList(sm) {
         iv = ini(name);
       const fname = sub.file_name || '',
         fsize = sub.file_size ? (Number(sub.file_size) / 1048576).toFixed(2) + ' MB' : '';
-      /* Store sub data for review modal */
       const subData = {
         sid: sub.student_id,
         aid: SEL_ASSIGN ? SEL_ASSIGN.id : '',
@@ -997,17 +1041,12 @@ function renderSubList(sm) {
   list.innerHTML = html;
 }
 
-/* ── MARK SCORES ── */
 function onMarkAssignChange(id) {
   SEL_ASSIGN = CUR_ASSIGNS.find(a => a.id === id) || SEL_ASSIGN;
   updAMeta(SEL_ASSIGN, 'm');
   renderMarkRows();
 }
 
-/* ══════════════════════════════════════════════════════════════
-   renderMarkRows — assessments se saved marks pre-fill
-   Teal dot = already saved | Grey dot = not saved
-══════════════════════════════════════════════════════════════ */
 async function renderMarkRows() {
   const cont = _('mark-rows');
   if (!CUR_ASSIGNS.length) {
@@ -1040,12 +1079,11 @@ async function renderMarkRows() {
             };
           }
         });
-        console.log('[MarkRows] Fetched', existing?.length || 0, 'for', SEL_ASSIGN.title);
       } catch (e) {
         console.error('[MarkRows] Error:', e);
       }
     }
-  } /* no demo mode */
+  }
 
   cont.innerHTML = CUR_STUDENTS.map((s, i) => {
     const av = AVC[i % AVC.length],
@@ -1119,7 +1157,6 @@ async function saveAllScores() {
   toast(`✓ ${updates.length} scores saved!`, 'ok');
 }
 
-/* ── NOTICES ── */
 async function loadNotices() {
   const list = _('notice-list');
   list.innerHTML = '<div class="loading-state">Loading…</div>';
@@ -1152,6 +1189,7 @@ function renderNoticeList(notices) {
       <div style="flex:1"><div style="font-size:13.5px;line-height:1.5"><strong>${n.title}</strong>${n.body ? ' — ' + n.body : ''}</div><div style="font-size:11.5px;color:var(--muted);margin-top:3px">${fmtDate(n.created_at)}</div></div>
     </div>`).join('');
 }
+
 async function postNotice() {
   const t = _('n-title').value.trim(),
     b = _('n-body').value.trim(),
@@ -1181,11 +1219,6 @@ async function postNotice() {
   await loadNotices();
 }
 
-/* ══════════════════════════════════════════════════════════════
-   openSubReview — Teacher submission review modal
-   File (PDF/Image) + comment box + save button
-   Teacher jo remarks likhega woh student ko bhi dikhega
-══════════════════════════════════════════════════════════════ */
 function openSubReview(jsonStr) {
   let meta;
   try {
@@ -1197,41 +1230,26 @@ function openSubReview(jsonStr) {
 
   const modal = _('sub-review-modal');
   if (!modal) {
-    toast('Modal not found — HTML update karo', 'err');
+    toast('Modal not found', 'err');
     return;
   }
 
-  /* File viewer: PDF ya Image auto-detect */
   const fname = (meta.fname || '').toLowerCase();
   const isImg = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(fname);
   const fileEl = _('srv-file-area');
 
   if (isImg) {
-    fileEl.innerHTML = '<img src="' + meta.url + '" alt="Submission"' +
-      ' style="max-width:100%;max-height:68vh;border-radius:10px;display:block;margin:0 auto;"' +
-      ' oncontextmenu="return false;">';
+    fileEl.innerHTML = '<img src="' + meta.url + '" alt="Submission" style="max-width:100%;max-height:68vh;border-radius:10px;display:block;margin:0 auto;" oncontextmenu="return false;">';
   } else {
-    /* PDF via iframe */
-    fileEl.innerHTML = '<iframe src="' + meta.url + '#toolbar=0&navpanes=0&view=FitH"' +
-      ' style="width:100%;height:68vh;border:none;border-radius:10px;" title="Submission"></iframe>';
+    fileEl.innerHTML = '<iframe src="' + meta.url + '#toolbar=0&navpanes=0&view=FitH" style="width:100%;height:68vh;border:none;border-radius:10px;" title="Submission"></iframe>';
   }
 
-  /* File name + existing remark */
   setTxt('srv-fname', meta.fname || 'Submission');
   _('srv-remark-input').value = meta.remark || '';
   _('srv-save-btn').dataset.subId = meta.subId || '';
-  _('srv-save-btn').dataset.remark = '';
-
-  /* Live char count */
-  _('srv-remark-input').oninput = function () {
-    const len = this.value.length;
-    setTxt('srv-char-count', len + ' characters');
-  };
-  setTxt('srv-char-count', (meta.remark || '').length + ' characters');
-
-  /* Update submission list after save so the cached remark updates */
   _('srv-save-btn')._metaAid = meta.aid;
   _('srv-save-btn')._metaSid = meta.sid;
+  setTxt('srv-char-count', (meta.remark || '').length + ' characters');
 
   modal.style.display = 'flex';
 }
@@ -1246,7 +1264,6 @@ async function saveSubRemark() {
   const input = _('srv-remark-input');
   const subId = btn.dataset.subId;
   const remark = input.value.trim();
-
   if (!subId) {
     toast('Submission ID nahi mila', 'err');
     return;
@@ -1266,20 +1283,14 @@ async function saveSubRemark() {
         .eq('id', subId);
       if (error) throw error;
     }
-
-    /* Update local cache so re-render shows new remark */
     const aid = btn._metaAid;
     const sid = btn._metaSid;
     if (aid && CUR_SUBS[aid] && CUR_SUBS[aid][sid]) {
       CUR_SUBS[aid][sid].teacher_remarks = remark;
     }
-
     toast('✓ Comment saved! Student ab dekh sakta hai.', 'ok');
     closeSubReview();
-
-    /* Re-render submissions list to reflect update */
     if (SEL_ASSIGN) renderSubList(CUR_SUBS[SEL_ASSIGN.id] || {});
-
   } catch (e) {
     toast('Error: ' + e.message, 'err');
   } finally {

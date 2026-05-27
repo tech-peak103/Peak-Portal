@@ -833,6 +833,49 @@ body {
   display: inline-block;
 }
 
+/* ════════════════════════════════════════════════
+   ✅ NEW — CLASS TYPE CHIP STYLES
+   Subject card pe show karta hai ki student ne
+   group class li hai ya individual (1-on-1) class
+════════════════════════════════════════════════ */
+.class-type-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  background: rgba(201, 168, 76, 0.15);
+  border: 1px solid rgba(201, 168, 76, 0.35);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gold);
+  margin: 8px 0 10px 0;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+/* Locked card mein chip subtle */
+.class-type-chip.locked {
+  background: rgba(138, 160, 184, 0.08);
+  border-color: rgba(138, 160, 184, 0.2);
+  color: var(--muted);
+}
+
+/* Active card mein chip golden glow ke saath */
+.active-card .class-type-chip {
+  background: rgba(201, 168, 76, 0.18);
+  border-color: rgba(201, 168, 76, 0.4);
+  box-shadow: 0 0 0 1px rgba(201, 168, 76, 0.08);
+}
+
+/* Detail page meta mein class type accent */
+.dh-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
 /* ═══ DETAIL PAGE ═══ */
 .detail-body {
   max-width: 1120px;
@@ -887,6 +930,7 @@ body {
   font-weight: 700;
 }
 
+/* Updated — dh-meta now supports inline class type label */
 .dh-meta {
   font-size: 13px;
   color: var(--muted);
@@ -1674,4 +1718,134 @@ tbody td {
   padding: 48px;
   color: var(--muted);
   font-size: 14px;
+}
+
+
+/* ════════════════════════════════════════════════
+   ✅ ADD THIS TO END OF YOUR style.css
+   Per-subject dual fee options + class type chip
+════════════════════════════════════════════════ */
+
+/* Class type chip — Subject card pe show */
+.class-type-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 12px;
+  background: rgba(201, 168, 76, 0.15);
+  border: 1px solid rgba(201, 168, 76, 0.35);
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gold);
+  margin: 8px 0 10px 0;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.class-type-chip.locked {
+  background: rgba(138, 160, 184, 0.08);
+  border-color: rgba(138, 160, 184, 0.2);
+  color: var(--muted);
+}
+
+.active-card .class-type-chip {
+  background: rgba(201, 168, 76, 0.18);
+  border-color: rgba(201, 168, 76, 0.4);
+  box-shadow: 0 0 0 1px rgba(201, 168, 76, 0.08);
+}
+
+/* "Choose Class Type" label */
+.choose-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 10px;
+  margin-top: 4px;
+}
+
+/* Fee option row (Group or Individual) */
+.fee-option-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fee-option-row:hover {
+  background: rgba(201, 168, 76, 0.08);
+  border-color: rgba(201, 168, 76, 0.4);
+  transform: translateX(2px);
+}
+
+.fee-option-row.premium {
+  background: linear-gradient(135deg, rgba(201, 168, 76, 0.08), rgba(201, 168, 76, 0.03));
+  border-color: rgba(201, 168, 76, 0.3);
+}
+
+.fee-option-row.premium:hover {
+  background: linear-gradient(135deg, rgba(201, 168, 76, 0.15), rgba(201, 168, 76, 0.05));
+  border-color: var(--gold);
+}
+
+.fee-opt-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+}
+
+.fee-opt-emoji {
+  font-size: 18px;
+}
+
+.fee-opt-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cream);
+  margin-bottom: 2px;
+}
+
+.fee-opt-price {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--gold);
+  font-family: 'Cormorant Garamond', serif;
+}
+
+.fee-opt-period {
+  font-size: 11px;
+  color: var(--muted);
+  font-weight: 400;
+  margin-left: 3px;
+}
+
+.fee-opt-arrow {
+  font-size: 16px;
+  color: var(--gold);
+  font-weight: 700;
+  margin-left: 8px;
+}
+
+.fee-opt-badge {
+  position: absolute;
+  top: -7px;
+  right: 12px;
+  padding: 2px 8px;
+  background: var(--gold);
+  color: #111;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  border-radius: 6px;
+  z-index: 2;
 }

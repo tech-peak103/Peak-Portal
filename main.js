@@ -152,15 +152,30 @@ async function loadNotices() {
 }
 
 /* ════════════════════════════════════════════════
-   ✅ loadSubjects — Per-subject class_type fetch
+   ✅ loadSubjects — comma-wali grade/board ko sahi se match karta hai
 ════════════════════════════════════════════════ */
 async function loadSubjects() {
   if (!IS_LIVE) { SUBJECTS = DEMO.subjects; renderSubjects(SUBJECTS); return; }
   try {
-    const grade = PROFILE.class || '', board = PROFILE.board || '';
-    const { data: rawSubjects, error: sErr } = await sb.from('subjects').select('*')
-      .or(`grade.eq.${grade},grade.eq.All`).or(`board.eq.${board},board.eq.All`);
+    const grade = (PROFILE.class || '').toString().trim();
+    const board = (PROFILE.board || '').toString().trim();
+
+    // Saare subjects laao, phir JS me filter karo (comma-wali grade/board ke liye)
+    const { data: allSubjects, error: sErr } = await sb.from('subjects').select('*');
     if (sErr) throw sErr;
+
+    // Helper: comma-separated list me student ki value hai ya "All" hai?
+    const matchField = (fieldValue, studentValue) => {
+      if (!fieldValue) return true;              // khaali = sabke liye
+      const list = fieldValue.split(',').map(x => x.trim().toLowerCase());
+      if (list.includes('all')) return true;     // "All" = sabke liye
+      return list.includes(studentValue.toLowerCase());
+    };
+
+    const rawSubjects = (allSubjects || []).filter(s =>
+      matchField(s.grade, grade) && matchField(s.board, board)
+    );
+
     if (!rawSubjects?.length) { SUBJECTS = []; renderSubjects([]); return; }
 
     const sids = rawSubjects.map(s => s.id);
@@ -600,6 +615,7 @@ function goBack() { showScreen('s-dash'); }
    ASSIGNMENTS SECTION
 ════════════════════════════════════════════════ */
 let CURR_ASSIGN_ID = null, CURR_ASSIGN_DATA = null;
+let _currentBlobUrl = null;  // ✅ purana blob saaf karne ke liye
 
 (function applyProtections() {
   document.addEventListener('contextmenu', function (e) {
@@ -676,7 +692,7 @@ async function loadAssignments(subjectId) {
   }
 }
 
-function viewAssignment(assignId) {
+async function viewAssignment(assignId) {
   const a = (window._assignCache || {})[assignId];
   const sub = (window._subCache || {})[assignId];
   if (!a) return;
@@ -693,7 +709,7 @@ function viewAssignment(assignId) {
   const wText = wName + (wRoll ? '  |  ' + wRoll : '');
   let contentHTML = '';
   if (a.file_url) {
-    const pdfSrc = a.file_url + '#toolbar=0&navpanes=0&scrollbar=1&view=FitH';
+    /* ✅ Pehle placeholder dikhao; PDF blob ki tarah baad me load hoga (download na ho isliye) */
     const wmRow = Array(30).fill('<span style="font-size:12px;font-weight:700;color:#fff;white-space:nowrap;letter-spacing:1px;padding:0 20px;">' + wText + '</span>').join('');
     contentHTML = '<div style="position:relative;border-radius:10px;overflow:hidden;background:#1a1a2e;">'
       + '<div style="position:absolute;inset:0;z-index:20;pointer-events:none;">'
@@ -701,7 +717,9 @@ function viewAssignment(assignId) {
       + '<div style="position:absolute;bottom:14px;right:16px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:1px;">' + wText + '</div>'
       + '<div style="position:absolute;top:14px;left:16px;font-size:11px;font-weight:700;color:rgba(255,255,255,0.4);letter-spacing:1px;">' + wText + '</div>'
       + '</div>'
-      + '<iframe src="' + pdfSrc + '" style="width:100%;height:72vh;min-height:500px;border:none;display:block;" title="Assignment Viewer"></iframe>'
+      + '<div id="pdf-frame-container" style="width:100%;height:72vh;min-height:500px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:13px;">'
+      + '<span class="spinner" style="margin-right:10px;"></span>Loading worksheet…'
+      + '</div>'
       + '</div>';
   } else if (a.instructions) {
     contentHTML = '<div style="position:relative;border-radius:10px;overflow:hidden;">'
@@ -730,9 +748,50 @@ function viewAssignment(assignId) {
     + contentHTML
     + '<div style="margin-top:18px;">' + footerHTML + '</div>';
   document.getElementById('view-modal').style.display = 'flex';
+
+  /* ✅ Ab PDF ko blob ki tarah fetch karke iframe me dikhao */
+  if (a.file_url) loadPdfBlob(a.file_url);
 }
 
-function closeViewModal() { document.getElementById('view-modal').style.display = 'none'; }
+/* ════════════════════════════════════════════════
+   ✅ NEW: PDF ko blob ke through dikhao (download fix)
+════════════════════════════════════════════════ */
+async function loadPdfBlob(url) {
+  const container = document.getElementById('pdf-frame-container');
+  if (!container) return;
+
+  /* purana blob memory se hatao */
+  if (_currentBlobUrl) { try { URL.revokeObjectURL(_currentBlobUrl); } catch (e) {} _currentBlobUrl = null; }
+
+  try {
+    const resp = await fetch(url, { cache: 'no-store' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const raw = await resp.blob();
+    /* force PDF type taaki browser inline dikhaye, download na kare */
+    const pdfBlob = (raw.type === 'application/pdf') ? raw : new Blob([raw], { type: 'application/pdf' });
+    const blobUrl = URL.createObjectURL(pdfBlob);
+    _currentBlobUrl = blobUrl;
+    container.style.display = 'block';
+    container.innerHTML =
+      '<iframe src="' + blobUrl + '#toolbar=0&navpanes=0&scrollbar=1&view=FitH" '
+      + 'style="width:100%;height:72vh;min-height:500px;border:none;display:block;" title="Assignment Viewer"></iframe>';
+  } catch (e) {
+    container.style.display = 'flex';
+    container.innerHTML =
+      '<div style="padding:30px;text-align:center;color:#fc8181;font-size:13px;line-height:1.7;">'
+      + 'Worksheet inline load nahi ho payi.<br>(' + e.message + ')<br><br>'
+      + '<a href="' + url + '" target="_blank" rel="noopener" style="color:#f5c200;font-weight:600;">Open in new tab →</a>'
+      + '</div>';
+  }
+}
+
+function closeViewModal() {
+  document.getElementById('view-modal').style.display = 'none';
+  /* blob memory se hatao */
+  if (_currentBlobUrl) { try { URL.revokeObjectURL(_currentBlobUrl); } catch (e) {} _currentBlobUrl = null; }
+  const c = document.getElementById('pdf-frame-container');
+  if (c) c.innerHTML = '';
+}
 
 function openSubmitModal(assignId, assignTitle) {
   CURR_ASSIGN_ID = assignId;

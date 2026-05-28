@@ -13,6 +13,7 @@ let CUR_STUDENTS = [],
   SEL_ASSIGN = null,
   _subFilter = 'all';
 const AVC = ['#00B8B4', '#4c9af5', '#4caf82', '#e8924a', '#e07070', '#b47cef'];
+let _srvBlobUrl = null;
 
 /* ════════════════════════════════════════════════
    ✅ HELPER — Per-subject fee (new schema)
@@ -1219,6 +1220,9 @@ async function postNotice() {
   await loadNotices();
 }
 
+/* ════════════════════════════════════════════════
+   ✅ FIXED openSubReview — har file type dikhao
+════════════════════════════════════════════════ */
 function openSubReview(jsonStr) {
   let meta;
   try {
@@ -1234,16 +1238,6 @@ function openSubReview(jsonStr) {
     return;
   }
 
-  const fname = (meta.fname || '').toLowerCase();
-  const isImg = /\.(jpg|jpeg|png|gif|webp|bmp)$/i.test(fname);
-  const fileEl = _('srv-file-area');
-
-  if (isImg) {
-    fileEl.innerHTML = '<img src="' + meta.url + '" alt="Submission" style="max-width:100%;max-height:68vh;border-radius:10px;display:block;margin:0 auto;" oncontextmenu="return false;">';
-  } else {
-    fileEl.innerHTML = '<iframe src="' + meta.url + '#toolbar=0&navpanes=0&view=FitH" style="width:100%;height:68vh;border:none;border-radius:10px;" title="Submission"></iframe>';
-  }
-
   setTxt('srv-fname', meta.fname || 'Submission');
   _('srv-remark-input').value = meta.remark || '';
   _('srv-save-btn').dataset.subId = meta.subId || '';
@@ -1252,11 +1246,92 @@ function openSubReview(jsonStr) {
   setTxt('srv-char-count', (meta.remark || '').length + ' characters');
 
   modal.style.display = 'flex';
+
+  /* ✅ File ko uske type ke hisaab se dikhao (PDF / Word / image / etc.) */
+  renderSubmissionFile(meta.url, meta.fname);
+}
+
+/* ════════════════════════════════════════════════
+   ✅ NEW: Submission file ko sahi viewer me dikhao
+════════════════════════════════════════════════ */
+async function renderSubmissionFile(url, fname) {
+  const fileEl = _('srv-file-area');
+  if (!fileEl) return;
+
+  /* purana blob memory se hatao */
+  if (_srvBlobUrl) { try { URL.revokeObjectURL(_srvBlobUrl); } catch (e) {} _srvBlobUrl = null; }
+
+  if (!url) {
+    fileEl.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;">No file attached.</div>';
+    return;
+  }
+
+  const name = (fname || url).toLowerCase();
+  const clean = name.split('#')[0].split('?')[0];
+  const ext = (clean.split('.').pop() || '').trim();
+
+  const isImage = /^(png|jpg|jpeg|gif|webp|bmp|svg)$/.test(ext);
+  const isPdf = ext === 'pdf';
+  const isOffice = /^(doc|docx|ppt|pptx|xls|xlsx)$/.test(ext);
+
+  fileEl.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;"><span class="spinner" style="margin-right:8px;"></span>Loading file…</div>';
+
+  /* ── WORD / PPT / EXCEL → Microsoft ka official viewer ── */
+  if (isOffice) {
+    const officeSrc = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(url);
+    fileEl.innerHTML =
+      '<iframe src="' + officeSrc + '" style="width:100%;height:68vh;border:none;border-radius:10px;background:#fff;" title="Submission"></iframe>';
+    return;
+  }
+
+  /* ── PDF aur IMAGE ke liye file ko blob ki tarah laao ── */
+  try {
+    const resp = await fetch(url, { cache: 'no-store' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const raw = await resp.blob();
+    const ctype = (resp.headers.get('content-type') || raw.type || '').toLowerCase();
+
+    /* IMAGE */
+    if (isImage || ctype.startsWith('image/')) {
+      const b = URL.createObjectURL(raw);
+      _srvBlobUrl = b;
+      fileEl.innerHTML =
+        '<img src="' + b + '" alt="Submission" style="max-width:100%;max-height:68vh;border-radius:10px;display:block;margin:0 auto;" oncontextmenu="return false;">';
+      return;
+    }
+
+    /* PDF */
+    if (isPdf || ctype.includes('pdf')) {
+      const pdfBlob = (raw.type === 'application/pdf') ? raw : new Blob([raw], { type: 'application/pdf' });
+      const b = URL.createObjectURL(pdfBlob);
+      _srvBlobUrl = b;
+      fileEl.innerHTML =
+        '<iframe src="' + b + '#toolbar=0&navpanes=0&view=FitH" style="width:100%;height:68vh;border:none;border-radius:10px;" title="Submission"></iframe>';
+      return;
+    }
+
+    /* koi aur type */
+    fileEl.innerHTML =
+      '<div style="padding:24px;text-align:center;color:#cbd5e1;font-size:13px;line-height:1.7;">'
+      + 'Is file ka preview yahan nahi dikh sakta (' + (ext || 'unknown') + ').<br><br>'
+      + '<a href="' + url + '" target="_blank" rel="noopener" style="color:var(--teal);font-weight:600;">Open in new tab →</a>'
+      + '</div>';
+  } catch (e) {
+    fileEl.innerHTML =
+      '<div style="padding:24px;text-align:center;color:#e07070;font-size:13px;line-height:1.7;">'
+      + 'File load nahi ho payi.<br>(' + e.message + ')<br><br>'
+      + '<a href="' + url + '" target="_blank" rel="noopener" style="color:var(--teal);font-weight:600;">Open in new tab →</a>'
+      + '</div>';
+  }
 }
 
 function closeSubReview() {
   const modal = _('sub-review-modal');
   if (modal) modal.style.display = 'none';
+  /* blob memory se hatao */
+  if (_srvBlobUrl) { try { URL.revokeObjectURL(_srvBlobUrl); } catch (e) {} _srvBlobUrl = null; }
+  const fileEl = _('srv-file-area');
+  if (fileEl) fileEl.innerHTML = '';
 }
 
 async function saveSubRemark() {

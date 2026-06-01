@@ -25,6 +25,17 @@ function getSubjectFee(subject, classType = 'group') {
   }
   return subject.fee_group_inr || subject.fee_inr || 0;
 }
+/* ✅ Raw score ko max_score ke hisaab se % banata hai, phir average nikalta hai */
+function avgPercent(rows, maxMap) {
+  const pcts = [];
+  (rows || []).forEach(r => {
+    const score = Number(r.student_score);
+    if (isNaN(score)) return;
+    const max = Number(maxMap[(r.name || '').trim()]) || 0;
+    pcts.push(max > 0 ? (score / max) * 100 : score); // max na mile to as-is
+  });
+  return pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
+}
 
 function showScreen(id) {
   document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
@@ -212,7 +223,7 @@ async function loadDashboard() {
         data: scores
       },
       {
-        count: aCount
+        data: pubAssigns
       },
       {
         data: payRecs
@@ -228,11 +239,8 @@ async function loadDashboard() {
       .select('payment_status, is_active, student_id, class_type')
       .eq('subject_id', s.id),
 
-      sb.from('assessments').select('student_score').eq('subject_id', s.id),
-      sb.from('assignments').select('*', {
-        count: 'exact',
-        head: true
-      }).eq('subject_id', s.id).eq('status', 'published'),
+      sb.from('assessments').select('student_score, name').eq('subject_id', s.id),
+      sb.from('assignments').select('title, max_score').eq('subject_id', s.id).eq('status', 'published'),
       sb.from('payments').select('amount_inr, status').eq('subject_id', s.id),
     ]);
 
@@ -257,8 +265,10 @@ async function loadDashboard() {
       .filter(p => PAID_ST.has((p.status || '').toLowerCase()))
       .reduce((sum, p) => sum + (Number(p.amount_inr) || 0), 0);
 
-    const vals = (scores || []).map(r => Number(r.student_score)).filter(v => !isNaN(v));
-    const avg = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
+    const maxMap = {};
+    (pubAssigns || []).forEach(a => { maxMap[(a.title || '').trim()] = Number(a.max_score) || 0; });
+    const aCount = (pubAssigns || []).length;
+    const avg = avgPercent(scores, maxMap) || 0; // ✅ % me
 
     return {
       ...s,
@@ -497,17 +507,17 @@ async function openSubject(id) {
   }
 
   /* Step 5: Avg scores */
+  /* ✅ assignment title -> max_score map (CUR_ASSIGNS pehle hi load ho chuke hain) */
+  const maxMap = {};
+  CUR_ASSIGNS.forEach(a => { maxMap[(a.title || '').trim()] = Number(a.max_score) || 0; });
+
   CUR_STUDENTS = await Promise.all(rawStudents.map(async s => {
     if (!s.id) return s;
     const {
       data: sc
     } = await sb.from('assessments')
-      .select('student_score').eq('student_id', s.id).eq('subject_id', CURR.id);
-    const vals = (sc || []).map(r => Number(r.student_score)).filter(v => !isNaN(v));
-    return {
-      ...s,
-      _avg: vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : null
-    };
+      .select('student_score, name').eq('student_id', s.id).eq('subject_id', CURR.id);
+    return { ...s, _avg: avgPercent(sc, maxMap) }; // ✅ % me, raw nahi
   }));
 
   console.log('[openSubject] Total students loaded:', CUR_STUDENTS.length);

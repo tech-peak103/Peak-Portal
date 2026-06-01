@@ -17,6 +17,17 @@ function clearSession() { sessionStorage.removeItem('pp_student'); }
 function getGroupFee(subject) {
   return subject.fee_group_inr || subject.fee_inr || 0;
 }
+/* ✅ Raw score ko max_score ke hisaab se % banata hai, phir average nikalta hai */
+function avgPercent(rows, maxMap) {
+  const pcts = [];
+  (rows || []).forEach(r => {
+    const score = Number(r.student_score);
+    if (isNaN(score)) return;
+    const max = Number(maxMap[(r.name || '').trim()]) || 0;
+    pcts.push(max > 0 ? (score / max) * 100 : score); // max na mile to as-is
+  });
+  return pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
+}
 
 function getIndividualFee(subject) {
   return subject.fee_individual_inr || 0;
@@ -196,13 +207,15 @@ async function loadSubjects() {
 
       let done = 0, avg = 0, dueIn = 0, lastPaid = '—', validUntil = '—', validityPct = 0;
       if (status === 'active') {
-        const [{ count }, { data: scores }] = await Promise.all([
+       const [{ count }, { data: scores }, { data: pubAssigns }] = await Promise.all([
           sb.from('assessments').select('*', { count: 'exact', head: true }).eq('subject_id', s.id).eq('student_id', PROFILE.id),
-          sb.from('assessments').select('student_score').eq('subject_id', s.id).eq('student_id', PROFILE.id)
+          sb.from('assessments').select('student_score, name').eq('subject_id', s.id).eq('student_id', PROFILE.id),
+          sb.from('assignments').select('title, max_score').eq('subject_id', s.id).eq('status', 'published')
         ]);
         done = count || 0;
-        const vals = (scores || []).map(r => Number(r.student_score));
-        avg = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
+        const maxMap = {};
+        (pubAssigns || []).forEach(a => { maxMap[(a.title || '').trim()] = Number(a.max_score) || 0; });
+        avg = avgPercent(scores, maxMap) || 0; // ✅ % me
         if (enroll && enroll.valid_until) {
           const exp = new Date(enroll.valid_until), today = new Date();
           dueIn = Math.max(0, Math.ceil((exp - today) / 86400000));
@@ -448,18 +461,27 @@ function renderChart(data) {
 
 async function fetchAssessments(subjectId) {
   if (!IS_LIVE) return [];
-  const { data, error } = await sb.from('assessments')
-    .select('*')
-    .eq('subject_id', subjectId)
-    .eq('student_id', PROFILE.id)
-    .order('conducted_at', { ascending: true });
+  const [{ data, error }, { data: pubAssigns }] = await Promise.all([
+    sb.from('assessments')
+      .select('*')
+      .eq('subject_id', subjectId)
+      .eq('student_id', PROFILE.id)
+      .order('conducted_at', { ascending: true }),
+    sb.from('assignments').select('title, max_score').eq('subject_id', subjectId).eq('status', 'published')
+  ]);
   if (error) return [];
-  return (data || []).map(r => ({
-    name: r.name,
-    avg: Number(r.class_avg_score),
-    score: Number(r.student_score),
-    remarks: (r.remarks || '').trim()
-  }));
+  const maxMap = {};
+  (pubAssigns || []).forEach(a => { maxMap[(a.title || '').trim()] = Number(a.max_score) || 0; });
+  return (data || []).map(r => {
+    const max = Number(maxMap[(r.name || '').trim()]) || 0;
+    const toPct = v => max > 0 ? Math.round((Number(v) / max) * 100) : Number(v);
+    return {
+      name: r.name,
+      avg: toPct(r.class_avg_score), // ✅ % me
+      score: toPct(r.student_score), // ✅ % me
+      remarks: (r.remarks || '').trim()
+    };
+  });
 }
 
 function renderTable(s, assessments) {

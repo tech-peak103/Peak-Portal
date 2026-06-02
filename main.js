@@ -157,7 +157,7 @@ async function doLogin() {
   const errEl = document.getElementById('login-err');
   errEl.style.display = 'none';
   if (!user || !pass) {
-    errEl.textContent = '⚠ Username aur password dono daalo.';
+    errEl.textContent = '⚠ Please enter both username and password.';
     errEl.style.display = 'block';
     return;
   }
@@ -750,7 +750,7 @@ function renderTable(s, assessments) {
 function openPayment(subjectId, classType = 'group') {
   /* ✅ Payment abhi band hai — koi payment screen open nahi hogi.
      Chalu karne ke liye upar PAYMENTS_ENABLED = true kar dena. */
-  if (!PAYMENTS_ENABLED) { toast('Payment abhi band hai — baad me chalu hoga.'); return; }
+  if (!PAYMENTS_ENABLED) { toast('Payments are currently disabled.'); return; }
 
   const s = SUBJECTS.find(x => x.id === subjectId);
   if (!s) return;
@@ -805,7 +805,7 @@ function selectMethod(m) {
 ════════════════════════════════════════════════ */
 async function submitPayment() {
   /* ✅ Payment abhi band hai */
-  if (!PAYMENTS_ENABLED) { toast('Payment abhi band hai — baad me chalu hoga.'); return; }
+  if (!PAYMENTS_ENABLED) { toast('Payments are currently disabled.'); return; }
 
   if (!CUR_SUBJ || !CUR_METHOD) return;
   const btn = document.getElementById('pay-submit-btn');
@@ -907,7 +907,7 @@ async function loadAssignments(subjectId) {
     const assigns = (assignsRaw || []).filter(a => assignmentInScope(a, sg, sbd));
     if (!assigns || assigns.length === 0) {
       lbl.textContent = '0 assignments';
-      list.innerHTML = '<div class="loading-state">Abhi koi assignment nahi hai.</div>';
+      list.innerHTML = '<div class="loading-state">No assignments yet.</div>';
       return;
     }
     const { data: subs } = await sb.from('assignment_submissions').select('*')
@@ -1084,14 +1084,14 @@ async function loadPdfBlob(url) {
     container.style.display = 'flex';
     container.innerHTML =
       '<div style="padding:30px;text-align:center;color:#cbd5e1;font-size:13px;line-height:1.7;">'
-      + 'Is file ka preview yahan nahi dikh sakta (type: ' + (ext || 'unknown') + ').<br><br>'
+      + 'This file cannot be previewed here (type: ' + (ext || 'unknown') + ').<br><br>'
       + '<a href="' + url + '" target="_blank" rel="noopener" style="color:#f5c200;font-weight:600;">Open in new tab →</a>'
       + '</div>';
   } catch (e) {
     container.style.display = 'flex';
     container.innerHTML =
       '<div style="padding:30px;text-align:center;color:#fc8181;font-size:13px;line-height:1.7;">'
-      + 'Worksheet load nahi ho payi.<br>(' + e.message + ')<br><br>'
+      + 'Could not load the worksheet.<br>(' + e.message + ')<br><br>'
       + '<a href="' + url + '" target="_blank" rel="noopener" style="color:#f5c200;font-weight:600;">Open in new tab →</a>'
       + '</div>';
   }

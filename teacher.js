@@ -209,7 +209,7 @@ async function doLogin() {
     err = _('login-err');
   err.style.display = 'none';
   if (!u || !p) {
-    err.textContent = 'Username aur password dono daalo.';
+    err.textContent = 'Please enter both username and password.';
     err.style.display = 'block';
     return;
   }
@@ -217,7 +217,7 @@ async function doLogin() {
   btn.innerHTML = '<span class="spinner"></span>Signing in…';
   try {
     if (!IS_LIVE) {
-      toast('⚠ Supabase connect nahi hai. Live login use karo.', 'err');
+      toast('⚠ Supabase is not connected. Please use live login.', 'err');
       btn.disabled = false;
       btn.textContent = 'Sign In to Portal →';
       return;
@@ -231,7 +231,7 @@ async function doLogin() {
     });
     if (error) throw error;
     if (!data || !data.success) {
-      err.textContent = '⚠ ' + (data?.message || 'Galat username ya password');
+      err.textContent = '⚠ ' + (data?.message || 'Invalid username or password');
       err.style.display = 'block';
       return;
     }
@@ -265,7 +265,7 @@ async function loadDashboard() {
   console.log('TEACHER:', TEACHER);
   showScreen('s-dash');
   if (!IS_LIVE) {
-    toast('⚠ Supabase se connect nahi ho pa raha.', 'err');
+    toast('⚠ Unable to connect to Supabase.', 'err');
     return;
   }
   setTxt('dash-sub', 'Loading your subjects…');
@@ -281,7 +281,7 @@ async function loadDashboard() {
   const tLower = (TEACHER.full_name || '').toLowerCase().trim();
   const subs = (allSubs || []).filter(s => (s.teacher || '').toLowerCase().trim() === tLower);
   if (!subs || !subs.length) {
-    _('curr-grid').innerHTML = '<div style="grid-column:1/-1;padding:48px 32px;text-align:center;color:var(--muted)"><div style="font-size:28px;margin-bottom:14px">📚</div><div style="font-size:16px;font-weight:600;color:var(--cream);margin-bottom:10px">Koi subject assign nahi hua</div></div>';
+    _('curr-grid').innerHTML = '<div style="grid-column:1/-1;padding:48px 32px;text-align:center;color:var(--muted)"><div style="font-size:28px;margin-bottom:14px">📚</div><div style="font-size:16px;font-weight:600;color:var(--cream);margin-bottom:10px">No subjects assigned yet</div></div>';
     _('pay-grid').innerHTML = '<div class="loading-state">No subjects found</div>';
     updateStats([]);
     return;
@@ -480,7 +480,7 @@ function renderCurrGrid(list) {
       <div class="cc-accent ${b}"></div>
       <div class="cc-board-tag ${b}">${s._scope || subjectScopeLabel(s)}</div>
       <div class="cc-name">${s.name}</div>
-      <div class="cc-sub">${s.code || ''} Academic Year 2025–26</div>
+      <div class="cc-sub">${s.code || ''} · Academic Year 2025–26</div>
       <div class="cc-stats">
         <div class="cc-stat"><div class="cc-stat-lbl">Students</div><div class="cc-stat-val" style="color:var(--blue)">${totalStudents}</div></div>
         <div class="cc-stat"><div class="cc-stat-lbl">Avg Score</div><div class="cc-stat-val" style="color:${avgC}">${s._avg ? s._avg + '%' : '—'}</div></div>
@@ -509,7 +509,7 @@ async function openSubject(id) {
   badge.textContent = CURR._scope || subjectScopeLabel(CURR);
   badge.className = `det-badge ${b}`;
   setTxt('det-title', CURR.name);
-  setTxt('det-meta', `${CURR.code || ''}  ${TEACHER.full_name}  - Academic Year 2025–26`);
+  setTxt('det-meta', `${CURR.code || ''} · ${TEACHER.full_name} · Academic Year 2025–26`);
   setTxt('up-sub-label', `${CURR._scope || subjectScopeLabel(CURR)} — ${CURR.name}`);
   _('stu-tbody').innerHTML = '<tr><td colspan="5" class="loading-state">Loading students…</td></tr>';
   _('mark-rows').innerHTML = '<div class="loading-state">Loading…</div>';
@@ -517,7 +517,7 @@ async function openSubject(id) {
   switchTab('upload');
 
   if (!IS_LIVE) {
-    toast('⚠ Supabase connection nahi hai.', 'err');
+    toast('⚠ Supabase is not connected.', 'err');
     return;
   }
 
@@ -766,8 +766,8 @@ function renderAssignList() {
   if (!CUR_ASSIGNS || !CUR_ASSIGNS.length) {
     if (listEl) listEl.innerHTML = '<div class="loading-state" style="text-align:center;padding:48px 24px;">' +
       '<div style="font-size:32px;margin-bottom:14px">📋</div>' +
-      '<div style="font-size:15px;font-weight:600;color:var(--cream);margin-bottom:10px">Koi assignment publish nahi hua abhi tak</div>' +
-      '<div style="font-size:13px;color:var(--muted);margin-bottom:20px">Upload Assignment tab se pehla assignment banao</div>' +
+      '<div style="font-size:15px;font-weight:600;color:var(--cream);margin-bottom:10px">No assignments published yet</div>' +
+      '<div style="font-size:13px;color:var(--muted);margin-bottom:20px">Create your first assignment from the Upload Assignment tab</div>' +
       '<button onclick="switchTab(\'upload\')" style="padding:10px 24px;background:var(--teal);border:none;border-radius:8px;color:#fff;font-family:\'DM Sans\',sans-serif;font-size:13.5px;font-weight:600;cursor:pointer;">+ Upload Assignment</button>' +
       '</div>';
     if (badge) badge.textContent = '0 assignments';
@@ -924,7 +924,7 @@ async function publishAssignment() {
     max = parseInt(_('a-max').value) || 50,
     inst = _('a-inst').value.trim();
   if (!title || !due) {
-    toast('Title aur due date fill karo', 'err');
+    toast('Please fill in the title and due date.', 'err');
     return;
   }
   const btn = _('pub-btn');
@@ -964,7 +964,7 @@ async function publishAssignment() {
     btn.innerHTML = '<span class="spinner"></span>Saving…';
   }
   if (!IS_LIVE) {
-    toast('⚠ Supabase connection nahi hai.', 'err');
+    toast('⚠ Supabase is not connected.', 'err');
     btn.disabled = false;
     btn.textContent = 'Publish Assignment →';
     return;
@@ -998,7 +998,7 @@ async function publishAssignment() {
   populateAssignSels();
   renderPublishedList();
   renderCurrGrid(SUBJECTS);
-  toast(`✓ "${title}" published! Students ko ab dikh raha hai.`, 'ok');
+  toast(`✓ "${title}" published! Students can see it now.`, 'ok');
   clearAssignFm();
   btn.disabled = false;
   btn.textContent = 'Publish Assignment →';
@@ -1125,7 +1125,7 @@ function renderSubList(sm) {
       const subDataStr = btoa(unescape(encodeURIComponent(JSON.stringify(subData))));
       const viewBtn = sub.file_url ?
         '<button onclick="openSubReview(atob(\'' + subDataStr + '\'))" class="sub-view" style="cursor:pointer;">✏️ Review & Comment</button>' :
-        '<span style="font-size:12px;color:var(--muted);">File nahi hai</span>';
+        '<span style="font-size:12px;color:var(--muted);">No file</span>';
       html += '<div class="sub-row" style="border-left:3px solid var(--green);padding-left:14px;align-items:flex-start;">' +
         '<div class="s-av" style="background:' + av + ';margin-top:4px;">' + iv + '</div>' +
         '<div style="flex:1;min-width:0;"><div class="sub-name">' + name + '</div>' +
@@ -1170,7 +1170,7 @@ function onMarkAssignChange(id) {
 async function renderMarkRows() {
   const cont = _('mark-rows');
   if (!CUR_ASSIGNS.length) {
-    cont.innerHTML = '<div class="loading-state">Pehle ek assignment upload karo.</div>';
+    cont.innerHTML = '<div class="loading-state">Please upload an assignment first.</div>';
     return;
   }
   if (!SEL_ASSIGN) SEL_ASSIGN = CUR_ASSIGNS[0];
@@ -1233,7 +1233,7 @@ async function renderMarkRows() {
 
 async function saveAllScores() {
   if (!SEL_ASSIGN) {
-    toast('Assignment select karo', 'err');
+    toast('Please select an assignment.', 'err');
     return;
   }
   const rows = document.querySelectorAll('#mark-rows .mark-row');
@@ -1256,13 +1256,13 @@ async function saveAllScores() {
     });
   });
   if (!updates.length) {
-    toast('Koi score fill nahi kiya', 'err');
+    toast('No scores were entered.', 'err');
     return;
   }
   const avg = Math.round(updates.reduce((a, u) => a + u.student_score, 0) / updates.length);
   updates.forEach(u => u.class_avg_score = avg);
   if (!IS_LIVE) {
-    toast('⚠ Supabase connection nahi hai.', 'err');
+    toast('⚠ Supabase is not connected.', 'err');
     return;
   }
   await sb.from('assessments').delete().eq('subject_id', CURR.id).eq('name', SEL_ASSIGN.title).in('student_id', updates.map(u => u.student_id));
@@ -1281,7 +1281,7 @@ async function loadNotices() {
   const list = _('notice-list');
   list.innerHTML = '<div class="loading-state">Loading…</div>';
   if (!IS_LIVE) {
-    list.innerHTML = '<div class="loading-state">Supabase connect karo.</div>';
+    list.innerHTML = '<div class="loading-state">Please connect Supabase.</div>';
     return;
   }
   const {
@@ -1315,8 +1315,8 @@ function renderNoticeList(notices) {
 /* ✅ Notice delete — student ke dashboard se bhi hat jayega (same table) */
 async function deleteNotice(id) {
   if (!id) return;
-  if (!confirm('Ye notice delete kar dein? Students ke dashboard se bhi hat jayega.')) return;
-  if (!IS_LIVE) { toast('⚠ Supabase connection nahi hai.', 'err'); return; }
+  if (!confirm('Delete this notice? It will also be removed from student dashboards.')) return;
+  if (!IS_LIVE) { toast('⚠ Supabase is not connected.', 'err'); return; }
   try {
     const { error } = await sb.from('notices').delete().eq('id', id);
     if (error) throw error;
@@ -1332,11 +1332,11 @@ async function postNotice() {
     b = _('n-body').value.trim(),
     ty = _('n-type').value;
   if (!t || !b) {
-    toast('Title aur content fill karo', 'err');
+    toast('Please fill in the title and content.', 'err');
     return;
   }
   if (!IS_LIVE) {
-    toast('⚠ Supabase connection nahi hai.', 'err');
+    toast('⚠ Supabase is not connected.', 'err');
     return;
   }
   const {
@@ -1449,13 +1449,13 @@ async function renderSubmissionFile(url, fname) {
     /* koi aur type */
     fileEl.innerHTML =
       '<div style="padding:24px;text-align:center;color:#cbd5e1;font-size:13px;line-height:1.7;">'
-      + 'Is file ka preview yahan nahi dikh sakta (' + (ext || 'unknown') + ').<br><br>'
+      + 'This file cannot be previewed here (' + (ext || 'unknown') + ').<br><br>'
       + '<a href="' + url + '" target="_blank" rel="noopener" style="color:var(--teal);font-weight:600;">Open in new tab →</a>'
       + '</div>';
   } catch (e) {
     fileEl.innerHTML =
       '<div style="padding:24px;text-align:center;color:#e07070;font-size:13px;line-height:1.7;">'
-      + 'File load nahi ho payi.<br>(' + e.message + ')<br><br>'
+      + 'Could not load the file.<br>(' + e.message + ')<br><br>'
       + '<a href="' + url + '" target="_blank" rel="noopener" style="color:var(--teal);font-weight:600;">Open in new tab →</a>'
       + '</div>';
   }
@@ -1476,7 +1476,7 @@ async function saveSubRemark() {
   const subId = btn.dataset.subId;
   const remark = input.value.trim();
   if (!subId) {
-    toast('Submission ID nahi mila', 'err');
+    toast('Submission ID not found.', 'err');
     return;
   }
 
@@ -1499,7 +1499,7 @@ async function saveSubRemark() {
     if (aid && CUR_SUBS[aid] && CUR_SUBS[aid][sid]) {
       CUR_SUBS[aid][sid].teacher_remarks = remark;
     }
-    toast('✓ Comment saved! Student ab dekh sakta hai.', 'ok');
+    toast('✓ Comment saved! The student can see it now.', 'ok');
     closeSubReview();
     if (SEL_ASSIGN) renderSubList(CUR_SUBS[SEL_ASSIGN.id] || {});
   } catch (e) {

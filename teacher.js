@@ -480,7 +480,7 @@ function renderCurrGrid(list) {
       <div class="cc-accent ${b}"></div>
       <div class="cc-board-tag ${b}">${s._scope || subjectScopeLabel(s)}</div>
       <div class="cc-name">${s.name}</div>
-      <div class="cc-sub">${s.code || ''} · Academic Year 2025–26</div>
+      <div class="cc-sub">${s.code || ''} Academic Year 2025–26</div>
       <div class="cc-stats">
         <div class="cc-stat"><div class="cc-stat-lbl">Students</div><div class="cc-stat-val" style="color:var(--blue)">${totalStudents}</div></div>
         <div class="cc-stat"><div class="cc-stat-lbl">Avg Score</div><div class="cc-stat-val" style="color:${avgC}">${s._avg ? s._avg + '%' : '—'}</div></div>
@@ -509,7 +509,7 @@ async function openSubject(id) {
   badge.textContent = CURR._scope || subjectScopeLabel(CURR);
   badge.className = `det-badge ${b}`;
   setTxt('det-title', CURR.name);
-  setTxt('det-meta', `${CURR.code || ''} · ${TEACHER.full_name} · Academic Year 2025–26`);
+  setTxt('det-meta', `${CURR.code || ''} ${TEACHER.full_name} - Academic Year 2025–26`);
   setTxt('up-sub-label', `${CURR._scope || subjectScopeLabel(CURR)} — ${CURR.name}`);
   _('stu-tbody').innerHTML = '<tr><td colspan="5" class="loading-state">Loading students…</td></tr>';
   _('mark-rows').innerHTML = '<div class="loading-state">Loading…</div>';
@@ -740,7 +740,7 @@ function renderPublishedList() {
       <div style="width:36px;height:36px;background:var(--teal-dim);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">📝</div>
       <div style="flex:1;min-width:0;">
         <div style="font-size:14px;font-weight:600;color:var(--cream);margin-bottom:4px;">${a.title}</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">${a.type} · Max: ${a.max_score} marks · ${dueStr}</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">${a.type} Max: ${a.max_score} marks · ${dueStr}</div>
         ${a.instructions ? `<div style="font-size:11.5px;color:var(--muted);line-height:1.5;">${a.instructions}</div>` : ''}
         ${a.file_url ? `<div style="margin-top:6px;font-size:12px;color:var(--teal);">📎 ${a.file_name || 'File attached'}</div>` : '<div style="margin-top:4px;font-size:11.5px;color:var(--muted);">No file attached</div>'}
       </div>
@@ -1031,7 +1031,7 @@ function populateAssignSels() {
 function updAMeta(a, p) {
   if (!a) return;
   setTxt(p + '-asgn-title', a.title || '—');
-  setTxt(p + '-asgn-meta', `Due: ${fmtDate(a.due_date)} · Max score: ${a.max_score}`);
+  setTxt(p + '-asgn-meta', `Due: ${fmtDate(a.due_date)}  /  Max score: ${a.max_score}`);
 }
 
 function onSubsAssignChange(id) {
@@ -1130,8 +1130,7 @@ function renderSubList(sm) {
         '<div class="s-av" style="background:' + av + ';margin-top:4px;">' + iv + '</div>' +
         '<div style="flex:1;min-width:0;"><div class="sub-name">' + name + '</div>' +
         (username ? '<div style="font-size:11.5px;color:var(--teal);margin-top:1px;">' + username + '</div>' : '') +
-        '<div class="sub-roll">Roll No. <strong style="color:var(--cream);">' + roll + '</strong>' + cls + '</div>' +
-        (fname ? '<div style="font-size:11px;color:var(--muted);margin-top:5px;">📎 ' + fname + (fsize ? ' (' + fsize + ')' : '') + '</div>' : '') +
+                (fname ? '<div style="font-size:11px;color:var(--muted);margin-top:5px;">📎 ' + fname + (fsize ? ' (' + fsize + ')' : '') + '</div>' : '') +
         '</div><div style="text-align:right;flex-shrink:0;min-width:140px;">' +
         '<div style="font-size:11px;color:var(--green);font-weight:700;margin-bottom:3px;">✓ Submitted</div>' +
         '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">' + fmtDate(sub.submitted_at) + '</div>' +
@@ -1150,7 +1149,7 @@ function renderSubList(sm) {
         '<div class="s-av" style="background:' + av + ';margin-top:4px;">' + iv + '</div>' +
         '<div style="flex:1;"><div class="sub-name">' + name + '</div>' +
         (username ? '<div style="font-size:11.5px;color:var(--muted);margin-top:1px;">' + username + '</div>' : '') +
-        '<div class="sub-roll">Roll No. <strong style="color:var(--cream);">' + roll + '</strong>' + cls + '</div>' +
+        '<div class="sub-roll"><strong style="color:var(--cream);">' + roll + '</strong>' + cls + '</div>' +
         '</div><div class="not-sub">✗ Not Submitted</div></div>';
     });
   }
@@ -1219,7 +1218,7 @@ async function renderMarkRows() {
         <div class="s-av" style="background:${av};width:28px;height:28px;font-size:11px">${iv}</div>
         <div>
           <div style="font-size:13.5px;font-weight:500">${s.full_name || '—'}</div>
-          <div style="font-size:11.5px;color:var(--muted)">${s.roll_number || ''}${s.username ? ' · @' + s.username : ''}</div>
+          <div style="font-size:11.5px;color:var(--muted)">${s.username ? '@' + s.username : ''}</div>
         </div>
       </div>
       <input class="m-score _sc" type="number" min="0"
@@ -1318,8 +1317,14 @@ async function deleteNotice(id) {
   if (!confirm('Delete this notice? It will also be removed from student dashboards.')) return;
   if (!IS_LIVE) { toast('⚠ Supabase is not connected.', 'err'); return; }
   try {
-    const { error } = await sb.from('notices').delete().eq('id', id);
+    /* .select() lagaya taaki pata chale kitni rows actually delete hui */
+    const { data, error } = await sb.from('notices').delete().eq('id', id).select();
     if (error) throw error;
+    if (!data || data.length === 0) {
+      /* RLS ne block kiya — koi row delete nahi hui */
+      toast('Delete blocked. Run the notices delete policy in Supabase.', 'err');
+      return;
+    }
     toast('✓ Notice deleted.', 'ok');
     await loadNotices();
   } catch (e) {

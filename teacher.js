@@ -16,14 +16,92 @@ const AVC = ['#00B8B4', '#4c9af5', '#4caf82', '#e8924a', '#e07070', '#b47cef'];
 let _srvBlobUrl = null;
 
 /* ════════════════════════════════════════════════
-   ✅ HELPER — Per-subject fee (new schema)
+   ✅ HELPER — Per-subject fee (fees jsonb se)
+   fees: [{"grade":"9","board":"ICSE","group_fee":13000,"individual_fee":15000}, ...]
 ════════════════════════════════════════════════ */
-function getSubjectFee(subject, classType = 'group') {
+function parseFees(fees) {
+  if (!fees) return [];
+  if (typeof fees === 'string') { try { fees = JSON.parse(fees); } catch { return []; } }
+  return Array.isArray(fees) ? fees : [];
+}
+function _feeMatchOne(val, target) {
+  if (val == null || val === '') return true;               // khaali = sabke liye
+  const list = String(val).split(',').map(x => x.trim().toLowerCase());
+  if (list.includes('all')) return true;                    // "All" = sabke liye
+  return list.includes((target || '').toString().trim().toLowerCase());
+}
+function feeMatches(entry, grade, board) {
+  return _feeMatchOne(entry.grade, grade) && _feeMatchOne(entry.board, board);
+}
+function feeNum(entry, classType) {
+  if (!entry) return 0;
+  const keys = classType === 'individual'
+    ? ['individual_fee', 'individual-fee', 'individualFee', 'fee_individual', 'individual']
+    : ['group_fee', 'group-fee', 'groupFee', 'fee_group', 'group'];
+  for (const k of keys) { if (entry[k] != null) return Number(entry[k]) || 0; }
+  return 0;
+}
+/* grade+board+classType ke hisaab se fee. grade/board na do to pehli entry. */
+function getSubjectFee(subject, classType = 'group', grade = null, board = null) {
   if (!subject) return 0;
-  if (classType === 'individual') {
-    return subject.fee_individual_inr || subject.fee_inr || 0;
-  }
-  return subject.fee_group_inr || subject.fee_inr || 0;
+  const fees = parseFees(subject.fees);
+  if (!fees.length) return 0;
+  let entry = null;
+  if (grade != null || board != null) entry = fees.find(f => feeMatches(f, grade, board));
+  if (!entry) entry = fees[0];
+  return feeNum(entry, classType);
+}
+/* subject kis board/grade ke liye hai — chip text (e.g. "ICSE 9, ISC 12") */
+function subjectScopeLabel(subject) {
+  const fees = parseFees(subject && subject.fees);
+  if (!fees.length) return '—';
+  const combos = fees.map(f => ((f.board || 'All') + ' ' + (f.grade || 'All')).trim());
+  return [...new Set(combos)].join(', ');
+}
+/* pehli fee entry ka board (color tag ke liye) */
+function subjectFirstBoard(subject) {
+  const fees = parseFees(subject && subject.fees);
+  return fees.length ? (fees[0].board || '') : '';
+}
+
+/* ════════════════════════════════════════════════
+   ✅ profiles.subjects parse — student ne kaunse subject liye
+   format 1: ["Economics","Math"]
+   format 2: [{"name":"Economics","type":"group"}, ...]
+════════════════════════════════════════════════ */
+function parseProfileSubjects(subs) {
+  if (!subs) return [];
+  if (typeof subs === 'string') { try { subs = JSON.parse(subs); } catch { subs = subs.split(',').map(x => x.trim()); } }
+  if (!Array.isArray(subs)) return [];
+  return subs.map(item => {
+    if (item && typeof item === 'object') {
+      return {
+        name: String(item.name || item.subject || '').trim(),
+        type: String(item.type || item.class_type || '').trim().toLowerCase()
+      };
+    }
+    return { name: String(item).trim(), type: '' };
+  }).filter(x => x.name);
+}
+/* profile ne ye subject liya hai? haan to uski entry (type ke liye) lautao */
+function profileSubjectEntry(profileSubjects, subject) {
+  const list = parseProfileSubjects(profileSubjects);
+  const sn = (subject.name || '').trim().toLowerCase();
+  const sc = (subject.code || '').trim().toLowerCase();
+  return list.find(x => {
+    const n = x.name.toLowerCase();
+    return n === sn || (sc && n === sc);
+  }) || null;
+}
+function normClassType(raw) {
+  return /ind|1|one/.test(String(raw || '').toLowerCase()) ? 'individual' : 'group';
+}
+/* assignment is grade+board ke liye hai? (grade/board khaali = sabke liye) */
+function assignmentInScope(a, grade, board) {
+  const ag = a.grade, ab = a.board;
+  const noScope = (ag == null || ag === '') && (ab == null || ab === '');
+  if (noScope) return true;                       // purane assignments = sabke liye
+  return _feeMatchOne(ag, grade) && _feeMatchOne(ab, board);
 }
 /* ✅ Raw score ko max_score ke hisaab se % banata hai, phir average nikalta hai */
 function avgPercent(rows, maxMap) {
@@ -211,79 +289,101 @@ async function loadDashboard() {
 
   const PAID_ST = new Set(['active', 'paid', 'completed', 'success', 'confirmed', 'verified']);
 
-  const enriched = await Promise.all(subs.map(async s => {
-    /* ✅ SAARE enrollments lo (active + pending) */
-    const [{
-        count: totEnroll
-      },
-      {
-        data: allEnrolls
-      },
-      {
-        data: scores
-      },
-      {
-        data: pubAssigns
-      },
-      {
-        data: payRecs
-      }
+  /* ════════════════════════════════════════════════
+     ✅ Har subject ko uske fees ke grade/board combos me
+     alag-alag CARD banao. Enrolled students ab
+     profiles.subjects (jsonb) se aate hain — student_subjects se nahi.
+  ════════════════════════════════════════════════ */
+
+  /* Saare student profiles ek baar laao */
+  const { data: allProfiles } = await sb
+    .from('profiles')
+    .select('id, full_name, username, roll_number, class, board, subjects, preferred_class_type');
+
+  const cards = [];
+  for (const s of subs) {
+    /* Is subject ko jin students ne profiles.subjects me liya hai */
+    const enrolledProfiles = (allProfiles || []).map(p => {
+      const entry = profileSubjectEntry(p.subjects, s);
+      if (!entry) return null;
+      const ct = normClassType(entry.type || p.preferred_class_type || 'group');
+      return { ...p, _class_type: ct };
+    }).filter(Boolean);
+
+    /* Subject-level data (scores / assignments / payments) */
+    const [
+      { data: scores },
+      { data: pubAssigns },
+      { data: payRecs }
     ] = await Promise.all([
-      sb.from('student_subjects').select('*', {
-        count: 'exact',
-        head: true
-      }).eq('subject_id', s.id),
-
-      /* ✅ Sirf is_active nahi — saare enrollments */
-      sb.from('student_subjects')
-      .select('payment_status, is_active, student_id, class_type')
-      .eq('subject_id', s.id),
-
-      sb.from('assessments').select('student_score, name').eq('subject_id', s.id),
-      sb.from('assignments').select('title, max_score').eq('subject_id', s.id).eq('status', 'published'),
-      sb.from('payments').select('amount_inr, status').eq('subject_id', s.id),
+      sb.from('assessments').select('student_id, student_score, name').eq('subject_id', s.id),
+      sb.from('assignments').select('title, max_score, grade, board').eq('subject_id', s.id).eq('status', 'published'),
+      sb.from('payments').select('student_id, amount_inr, status').eq('subject_id', s.id),
     ]);
-
-    /* Active vs pending counts */
-    const enrolls = allEnrolls || [];
-    const activeEnrolls = enrolls.filter(e => e.is_active === true);
-    const pendingEnrolls = enrolls.filter(e => !e.is_active && (e.payment_status === 'pending'));
-
-    const active = activeEnrolls.length;
-    const pending = pendingEnrolls.length;
-    const paid = activeEnrolls.filter(e => PAID_ST.has((e.payment_status || '').toLowerCase())).length;
-
-    /* ✅ Expected fee — saare active+pending students ke liye */
-    let expectedTotal = 0;
-    [...activeEnrolls, ...pendingEnrolls].forEach(e => {
-      const ct = e.class_type || 'group';
-      expectedTotal += getSubjectFee(s, ct);
-    });
-
-    /* Actual received from payments */
-    const received = (payRecs || [])
-      .filter(p => PAID_ST.has((p.status || '').toLowerCase()))
-      .reduce((sum, p) => sum + (Number(p.amount_inr) || 0), 0);
 
     const maxMap = {};
     (pubAssigns || []).forEach(a => { maxMap[(a.title || '').trim()] = Number(a.max_score) || 0; });
-    const aCount = (pubAssigns || []).length;
-    const avg = avgPercent(scores, maxMap) || 0; // ✅ % me
 
-    return {
-      ...s,
-      _tot: totEnroll || 0,
-      _active: active,
-      _pending: pending,
-      _paid: paid,
-      _received: received,
-      _expected: expectedTotal,
-      _avg: avg,
-      _asgn: aCount || 0,
-      _enrollments: enrolls /* ✅ Sab enrollments */
-    };
-  }));
-  SUBJECTS = enriched;
+    /* fees ke combos. fees na ho to ek hi card (saare enrolled students) */
+    const fees = parseFees(s.fees);
+    const combos = fees.length ? fees : [{ grade: null, board: null, _all: true }];
+
+    combos.forEach(combo => {
+      /* is combo (grade+board) ke students */
+      const inCombo = combo._all ? enrolledProfiles : enrolledProfiles.filter(p =>
+        feeMatches(combo, p.class, p.board)
+      );
+      const studentIds = new Set(inCombo.map(p => p.id));
+
+      /* Payment band hai → har enrolled student ACTIVE */
+      const active = inCombo.length;
+      const pending = 0;
+
+      /* verified payments (agar koi ho) */
+      const paidRecs = (payRecs || []).filter(p =>
+        studentIds.has(p.student_id) && PAID_ST.has((p.status || '').toLowerCase())
+      );
+      const paid = new Set(paidRecs.map(p => p.student_id)).size;
+      const received = paidRecs.reduce((sum, p) => sum + (Number(p.amount_inr) || 0), 0);
+
+      /* Expected — is combo ke students ki fee */
+      let expectedTotal = 0;
+      inCombo.forEach(p => {
+        expectedTotal += getSubjectFee(s, p._class_type, p.class, p.board);
+      });
+
+      /* Avg — sirf is combo ke students ke scores */
+      const comboScores = (scores || []).filter(r => studentIds.has(r.student_id));
+      const avg = avgPercent(comboScores, maxMap) || 0;
+
+      /* Is combo (grade+board) ke published assignments ki ginti */
+      const aCount = combo._all
+        ? (pubAssigns || []).length
+        : (pubAssigns || []).filter(a => assignmentInScope(a, combo.grade, combo.board)).length;
+
+      const scopeLabel = combo._all
+        ? subjectScopeLabel(s)
+        : ((combo.board || 'All') + ' ' + (combo.grade || 'All')).trim();
+
+      cards.push({
+        ...s,
+        _cardId: s.id + '||' + (combo.grade || '') + '||' + (combo.board || ''),
+        _grade: combo.grade || null,
+        _board: combo.board || null,
+        _scope: scopeLabel,
+        _tot: inCombo.length,
+        _active: active,
+        _pending: pending,
+        _paid: paid,
+        _received: received,
+        _expected: expectedTotal,
+        _avg: avg,
+        _asgn: aCount || 0,
+        _students: inCombo   /* ✅ is card ke actual student profiles */
+      });
+    });
+  }
+  SUBJECTS = cards;
   renderDashboard();
 }
 
@@ -300,7 +400,12 @@ function updateStats(list) {
   const totPaid = list.reduce((a, s) => a + (s._paid || 0), 0);
   const totExp = list.reduce((a, s) => a + (s._expected || 0), 0);
   const totRec = list.reduce((a, s) => a + (s._received || 0), 0);
-  const totA = list.reduce((a, s) => a + (s._asgn || 0), 0);
+  const totA = (() => {
+    const seen = new Set();
+    let n = 0;
+    list.forEach(s => { if (!seen.has(s.id)) { seen.add(s.id); n += (s._asgn || 0); } });
+    return n;
+  })();
   const avgs = list.filter(s => s._avg > 0).map(s => s._avg);
   const overAvg = avgs.length ? Math.round(avgs.reduce((a, b) => a + b, 0) / avgs.length) : 0;
   const paidPct = totExp > 0 ? Math.round(totRec / totExp * 100) : 0;
@@ -338,8 +443,8 @@ function renderPayBreakdown(list) {
     const pct = exp > 0 ? Math.round(rec / exp * 100) : 0;
     const fc = pct >= 100 ? '' : pct >= 70 ? 'partial' : 'low';
 
-    const enrollments = s._enrollments || [];
-    const groupCount = enrollments.filter(e => (e.class_type || 'group') === 'group').length;
+    const enrollments = s._students || [];
+    const groupCount = enrollments.filter(e => (e._class_type || 'group') === 'group').length;
     const indCount = enrollments.length - groupCount;
     const breakdown = (indCount > 0 && groupCount > 0) ?
       `${groupCount} Group · ${indCount} 1-on-1` :
@@ -348,7 +453,7 @@ function renderPayBreakdown(list) {
     /* ✅ Total students = active + pending */
     const totalStudents = (s._active || 0) + (s._pending || 0);
 
-    return `<div class="pci"><div class="pci-board">${s.board || '—'} · ${s.grade || '—'}</div>
+    return `<div class="pci"><div class="pci-board">${s._scope || subjectScopeLabel(s)}</div>
       <div class="pci-name">${s.name}</div>
       <div class="pci-row"><span class="pci-key">Mix</span><span class="pci-val" style="color:var(--teal);font-size:12px;">${breakdown}</span></div>
       <div class="pci-row"><span class="pci-key">Expected</span><span class="pci-val">₹${exp.toLocaleString('en-IN')}</span></div>
@@ -366,16 +471,16 @@ function renderCurrGrid(list) {
     return;
   }
   g.innerHTML = list.map(s => {
-    const b = bc(s.board);
+    const b = bc(s._board || subjectFirstBoard(s));
     const avgC = s._avg >= 75 ? 'var(--green)' : 'var(--teal)';
     const totalStudents = (s._active || 0) + (s._pending || 0);
     const paidC = (s._paid === totalStudents && totalStudents > 0) ? 'var(--green)' : 'var(--orange)';
     const earnings = s._received || 0;
-    return `<div class="curr-card" onclick="openSubject('${s.id}')">
+    return `<div class="curr-card" onclick="openSubject('${s._cardId || s.id}')">
       <div class="cc-accent ${b}"></div>
-      <div class="cc-board-tag ${b}">${s.board || '—'} · ${s.grade || '—'}</div>
+      <div class="cc-board-tag ${b}">${s._scope || subjectScopeLabel(s)}</div>
       <div class="cc-name">${s.name}</div>
-      <div class="cc-sub">${s.code || ''} · Academic Year 2025–26</div>
+      <div class="cc-sub">${s.code || ''} Academic Year 2025–26</div>
       <div class="cc-stats">
         <div class="cc-stat"><div class="cc-stat-lbl">Students</div><div class="cc-stat-val" style="color:var(--blue)">${totalStudents}</div></div>
         <div class="cc-stat"><div class="cc-stat-lbl">Avg Score</div><div class="cc-stat-val" style="color:${avgC}">${s._avg ? s._avg + '%' : '—'}</div></div>
@@ -392,20 +497,20 @@ function renderCurrGrid(list) {
    ✅ FIXED openSubject — Pending students bhi load karo
 ══════════════════════════════════════════════════════════════ */
 async function openSubject(id) {
-  CURR = SUBJECTS.find(s => s.id === id);
+  CURR = SUBJECTS.find(s => (s._cardId || s.id) === id) || SUBJECTS.find(s => s.id === id);
   if (!CURR) return;
   CUR_STUDENTS = [];
   CUR_ASSIGNS = [];
   CUR_SUBS = {};
   SEL_ASSIGN = null;
-  const b = bc(CURR.board);
+  const b = bc(CURR._board || subjectFirstBoard(CURR));
   setTxt('bc-name', CURR.name);
   const badge = _('det-badge');
-  badge.textContent = `${CURR.board || '—'} · ${CURR.grade || '—'}`;
+  badge.textContent = CURR._scope || subjectScopeLabel(CURR);
   badge.className = `det-badge ${b}`;
   setTxt('det-title', CURR.name);
-  setTxt('det-meta', `${CURR.code || ''} · ${TEACHER.full_name} · Academic Year 2025–26`);
-  setTxt('up-sub-label', `${CURR.board || ''} ${CURR.grade || ''} — ${CURR.name}`);
+  setTxt('det-meta', `${CURR.code || ''}  ${TEACHER.full_name}  - Academic Year 2025–26`);
+  setTxt('up-sub-label', `${CURR._scope || subjectScopeLabel(CURR)} — ${CURR.name}`);
   _('stu-tbody').innerHTML = '<tr><td colspan="5" class="loading-state">Loading students…</td></tr>';
   _('mark-rows').innerHTML = '<div class="loading-state">Loading…</div>';
   showScreen('s-detail');
@@ -416,7 +521,7 @@ async function openSubject(id) {
     return;
   }
 
-  /* Step 1: Assignments */
+  /* Step 1: Assignments — sirf is card (grade+board combo) ke */
   const {
     data: asgns
   } = await sb.from('assignments').select('*')
@@ -424,32 +529,33 @@ async function openSubject(id) {
     .order('created_at', {
       ascending: false
     });
-  CUR_ASSIGNS = asgns || [];
+  CUR_ASSIGNS = (asgns || []).filter(a =>
+    (CURR._grade == null && CURR._board == null) ? true : assignmentInScope(a, CURR._grade, CURR._board)
+  );
   SEL_ASSIGN = CUR_ASSIGNS[0] || null;
   populateAssignSels();
   renderPublishedList();
 
-  /* ✅ Step 2: ALL enrolled students (active + pending)
-     Removed: .eq('is_active', true) filter
-     Added: class_type from student_subjects (NOT profiles)
-  */
-  const {
-    data: en
-  } = await sb.from('student_subjects')
-    .select('student_id, payment_status, is_active, class_type, profiles(id, full_name, username, roll_number, class, board)')
-    .eq('subject_id', CURR.id);
-
-  console.log('[openSubject] Enrollments fetched:', en);
-
-  const rawStudents = (en || []).map(e => ({
-    ...(e.profiles || {}),
-    id: (e.profiles && e.profiles.id) || e.student_id,
-    _pay: e.payment_status,
-    _is_active: e.is_active,
-    _class_type: e.class_type || 'group',
-    /* ✅ From student_subjects */
+  /* ✅ Step 2: Is card (combo) ke enrolled students — profiles.subjects se
+     (dashboard me pehle hi nikaale ja chuke hain) */
+  const rawStudents = (CURR._students || []).map(p => ({
+    id: p.id,
+    full_name: p.full_name || null,
+    username: p.username || null,
+    roll_number: p.roll_number || null,
+    class: p.class || null,
+    board: p.board || null,
+    _class_type: p._class_type || 'group',
+    _is_active: true,      /* payment band → active */
+    _pay: 'active',
     _avg: null
   }));
+
+  /* is card kis grade+board ka hai (submission-students filter ke liye) */
+  const _comboFilter = (cls, brd) => {
+    if (CURR._grade == null && CURR._board == null) return true;   // "all" card
+    return feeMatches({ grade: CURR._grade, board: CURR._board }, cls, brd);
+  };
 
   /* Step 3: Submissions ke through bhi students */
   if (CUR_ASSIGNS.length) {
@@ -464,6 +570,8 @@ async function openSubject(id) {
     (subRows || []).forEach(sub => {
       if (sub.student_id && !knownIds.has(sub.student_id)) {
         const pr = sub.profiles || {};
+        /* ✅ Sirf is combo (grade+board) ke students hi add karo */
+        if (!_comboFilter(pr.class, pr.board)) return;
         rawStudents.push({
           id: sub.student_id,
           full_name: pr.full_name || null,
@@ -540,7 +648,7 @@ function updateDetStats() {
     CUR_STUDENTS.forEach(s => {
       if (s._pay === 'active' || s._is_active === true) {
         const ct = s._class_type || 'group';
-        earn += getSubjectFee(CURR, ct);
+        earn += getSubjectFee(CURR, ct, s.class, s.board);
       }
     });
   }
@@ -574,7 +682,7 @@ function renderStudentTable(filter = '') {
     const isPending = !isActive && (s._pay === 'pending');
     let ptag, pcls;
     if (isActive) {
-      ptag = '✓ Paid';
+      ptag = '✓ Active';
       pcls = 'paid';
     } else if (isPending) {
       ptag = '⏳ Pending';
@@ -830,12 +938,11 @@ async function publishAssignment() {
     fileName = f.name;
     btn.innerHTML = '<span class="spinner"></span>Uploading file…';
     try {
-      const grade = (CURR.grade || 'Unknown').replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-');
-      const board = (CURR.board || 'Unknown').replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-');
+      const codeFolder = (CURR.code || CURR.name || 'Subject').replace(/[^a-zA-Z0-9]/g, '-').replace(/-+/g, '-');
       const subName = (CURR.name || 'Subject').replace(/[^a-zA-Z0-9 ]/g, '').replace(/ +/g, '-');
       const tName = (TEACHER.full_name || 'Teacher').replace(/[^a-zA-Z0-9 .]/g, '').replace(/ +/g, '-');
       const safeFN = f.name.replace(/[^a-zA-Z0-9._-]/g, '_');
-      const path = grade + '-' + board + '/' + subName + '/' + tName + '/' + safeFN;
+      const path = codeFolder + '/' + subName + '/' + tName + '/' + safeFN;
       const {
         error: ue
       } = await sb.storage.from('peak-assignments').upload(path, f, {
@@ -875,7 +982,9 @@ async function publishAssignment() {
     instructions: inst,
     file_url: fileUrl,
     file_name: fileName,
-    status: 'published'
+    status: 'published',
+    grade: CURR._grade || null,   /* ✅ sirf is grade ke liye */
+    board: CURR._board || null    /* ✅ sirf is board ke liye */
   }).select().single();
   if (error) {
     toast('Error: ' + error.message, 'err');
@@ -1113,7 +1222,7 @@ async function renderMarkRows() {
           <div style="font-size:11.5px;color:var(--muted)">${s.roll_number || ''}${s.username ? ' · @' + s.username : ''}</div>
         </div>
       </div>
-      <input class="m-score _sc" type="number" min="0" max="${SEL_ASSIGN.max_score}"
+      <input class="m-score _sc" type="number" min="0"
              placeholder="—" value="${score}" style="${scoreColor}">
       <div style="font-size:12px;color:var(--muted)">/ ${SEL_ASSIGN.max_score}</div>
       <input class="m-remarks _rm" placeholder="Add remarks…" value="${remark}">
@@ -1198,7 +1307,24 @@ function renderNoticeList(notices) {
     <div class="n-row">
       <div class="n-dot" style="background:${clr[n.type] || clr.info};margin-top:6px"></div>
       <div style="flex:1"><div style="font-size:13.5px;line-height:1.5"><strong>${n.title}</strong>${n.body ? ' — ' + n.body : ''}</div><div style="font-size:11.5px;color:var(--muted);margin-top:3px">${fmtDate(n.created_at)}</div></div>
+      <button onclick="deleteNotice('${n.id}')" title="Delete notice"
+        style="flex-shrink:0;background:rgba(224,112,112,0.12);border:1px solid rgba(224,112,112,0.35);color:#e07070;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:600;cursor:pointer;">🗑 Delete</button>
     </div>`).join('');
+}
+
+/* ✅ Notice delete — student ke dashboard se bhi hat jayega (same table) */
+async function deleteNotice(id) {
+  if (!id) return;
+  if (!confirm('Ye notice delete kar dein? Students ke dashboard se bhi hat jayega.')) return;
+  if (!IS_LIVE) { toast('⚠ Supabase connection nahi hai.', 'err'); return; }
+  try {
+    const { error } = await sb.from('notices').delete().eq('id', id);
+    if (error) throw error;
+    toast('✓ Notice deleted.', 'ok');
+    await loadNotices();
+  } catch (e) {
+    toast('Delete failed: ' + e.message, 'err');
+  }
 }
 
 async function postNotice() {

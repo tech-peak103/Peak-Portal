@@ -7,6 +7,22 @@ if (IS_LIVE) {
   sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 }
 
+/* ════════════════════════════════════════════════
+   ✅ PAYMENT MASTER SWITCH
+   ------------------------------------------------
+   Abhi payment BAND hai (false).
+   - Student ko sirf wahi subjects dikhenge jo uske
+     profiles.subjects me likhe hain (grade/board match ke saath).
+     e.g. [{"name":"Economics","type":"group"},{"name":"Math","type":"individual"}]
+   - Wo sabhi subjects bina payment ke ACTIVE/unlock dikhenge,
+     teacher aur group/1-on-1 chip ke saath.
+
+   👉 Jab payment dobara chalu karna ho, neeche
+      false ki jagah true kar dena. Poora purana
+      payment code waise ka waise hi file me maujood hai.
+════════════════════════════════════════════════ */
+const PAYMENTS_ENABLED = false;
+
 function saveSession(profile) { sessionStorage.setItem('pp_student', JSON.stringify(profile)); }
 function loadSession() { try { return JSON.parse(sessionStorage.getItem('pp_student')); } catch { return null; } }
 function clearSession() { sessionStorage.removeItem('pp_student'); }
@@ -14,8 +30,46 @@ function clearSession() { sessionStorage.removeItem('pp_student'); }
 /* ════════════════════════════════════════════════
    ✅ HELPERS — Per-subject fee aur label
 ════════════════════════════════════════════════ */
+/* ✅ fees jsonb parse + matching helpers (naya schema) */
+function parseFees(fees) {
+  if (!fees) return [];
+  if (typeof fees === 'string') { try { fees = JSON.parse(fees); } catch { return []; } }
+  return Array.isArray(fees) ? fees : [];
+}
+function _feeMatchOne(val, target) {
+  if (val == null || val === '') return true;               // khaali = sabke liye
+  const list = String(val).split(',').map(x => x.trim().toLowerCase());
+  if (list.includes('all')) return true;                    // "All" = sabke liye
+  return list.includes((target || '').toString().trim().toLowerCase());
+}
+function feeMatches(entry, grade, board) {
+  return _feeMatchOne(entry.grade, grade) && _feeMatchOne(entry.board, board);
+}
+/* assignment is grade+board ke liye hai? (grade/board khaali = sabke liye) */
+function assignmentInScope(a, grade, board) {
+  const ag = a.grade, ab = a.board;
+  const noScope = (ag == null || ag === '') && (ab == null || ab === '');
+  if (noScope) return true;                       // purane assignments = sabke liye
+  return _feeMatchOne(ag, grade) && _feeMatchOne(ab, board);
+}
+function feeNum(entry, classType) {
+  if (!entry) return 0;
+  const keys = classType === 'individual'
+    ? ['individual_fee', 'individual-fee', 'individualFee', 'fee_individual', 'individual']
+    : ['group_fee', 'group-fee', 'groupFee', 'fee_group', 'group'];
+  for (const k of keys) { if (entry[k] != null) return Number(entry[k]) || 0; }
+  return 0;
+}
+/* student ki grade+board ke hisaab se sahi fee entry */
+function getStudentFeeEntry(subject) {
+  const fees = parseFees(subject && subject.fees);
+  if (!fees.length) return null;
+  const g = (PROFILE && PROFILE.class) || '';
+  const b = (PROFILE && PROFILE.board) || '';
+  return fees.find(f => feeMatches(f, g, b)) || fees[0];
+}
 function getGroupFee(subject) {
-  return subject.fee_group_inr || subject.fee_inr || 0;
+  return feeNum(getStudentFeeEntry(subject), 'group');
 }
 /* ✅ Raw score ko max_score ke hisaab se % banata hai, phir average nikalta hai */
 function avgPercent(rows, maxMap) {
@@ -30,7 +84,7 @@ function avgPercent(rows, maxMap) {
 }
 
 function getIndividualFee(subject) {
-  return subject.fee_individual_inr || 0;
+  return feeNum(getStudentFeeEntry(subject), 'individual');
 }
 
 function getEnrolledClassType(subject) {
@@ -157,35 +211,187 @@ async function loadNotices() {
       <div class="ndott ${n.type || 'info'}"></div>
       <div>
         <div class="ni-txt">${n.title}${n.body ? ' <span style="color:var(--muted)">— ' + n.body + '</span>' : ''}</div>
-        <div class="ni-date">${n.created_at}</div>
+        <div class="ni-date">${fmtDate(n.created_at)}</div>
       </div>
     </div>`).join('');
+  wireBell();   // 🔔 icon ko notice board se jodo
+}
+
+/* ✅ Notification bell pe click → notice board tak le jao */
+function scrollToNotices() {
+  const el = document.getElementById('notice-list')
+          || document.getElementById('nb-ct')
+          || document.querySelector('.nb, .notice-board');
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+/* bell icon dhoondh ke click handler lagao (🔔 emoji ya bell class se) */
+function wireBell() {
+  if (window._bellWired) return;
+  let bell = document.getElementById('bell') || document.querySelector('.bell, [class*="bell"], [class*="notif"]');
+  if (!bell) {
+    // emoji 🔔 wale leaf element ko dhoondo
+    const nodes = document.querySelectorAll('span, button, a, i, div');
+    for (const el of nodes) {
+      if (el.children.length === 0 && /🔔/.test(el.textContent || '')) { bell = el; break; }
+    }
+  }
+  if (bell) {
+    const target = bell.closest('button, a') || bell;
+    target.style.cursor = 'pointer';
+    target.addEventListener('click', scrollToNotices);
+    window._bellWired = true;
+  }
 }
 
 /* ════════════════════════════════════════════════
-   ✅ loadSubjects — comma-wali grade/board ko sahi se match karta hai
+   ✅ loadSubjects
+   ------------------------------------------------
+   PAYMENTS_ENABLED = false  → sirf enrolled subjects, sab ACTIVE (bina payment)
+   PAYMENTS_ENABLED = true   → purana behaviour (grade/board match + payment lock)
 ════════════════════════════════════════════════ */
 async function loadSubjects() {
   if (!IS_LIVE) { SUBJECTS = DEMO.subjects; renderSubjects(SUBJECTS); return; }
+
+  /* ════════════════════════════════════════════════
+     ✅ PAYMENT BAND MODE
+     Student ke profile me jo subjects list hai usi se dikhao.
+     profiles.subjects  ->  e.g. ["English","Economics","Maths"]
+     In sabhi subjects ko bina payment ke ACTIVE maan lo.
+     (Naam case/space ka farak nahi padta; code se bhi match hota hai.)
+  ════════════════════════════════════════════════ */
+  if (!PAYMENTS_ENABLED) {
+    try {
+      // profiles me jo subjects diye hain wo nikaalo.
+      // pehle login/session se, agar na mile to SEEDHA profiles table se laao.
+      let wanted = PROFILE.subjects;
+      let prefType = PROFILE.preferred_class_type;
+
+      if (wanted === undefined || wanted === null) {
+        const { data: prof, error: pErr } = await sb
+          .from('profiles')
+          .select('subjects, preferred_class_type')
+          .eq('id', PROFILE.id)
+          .single();
+        if (pErr) throw pErr;
+        if (prof) {
+          wanted = prof.subjects;
+          if (!prefType) prefType = prof.preferred_class_type;
+        }
+      }
+
+      // agar DB se string ke roop me aaye to array bana do
+      if (typeof wanted === 'string') {
+        try { wanted = JSON.parse(wanted); }
+        catch { wanted = wanted.split(',').map(x => x.trim()); }
+      }
+      if (!Array.isArray(wanted)) wanted = [];
+
+      /* wanted ko normalize karo. DONO format chalenge:
+         1) Simple naam:       ["English","Economics","Maths"]
+         2) Per-subject type:  [{"name":"English","type":"individual"},{"name":"Maths","type":"group"}]
+      */
+      const wantedList = wanted.map(item => {
+        if (item && typeof item === 'object') {
+          return {
+            name: String(item.name || item.subject || '').trim(),
+            type: String(item.type || item.class_type || '').trim().toLowerCase()
+          };
+        }
+        return { name: String(item).trim(), type: '' };
+      }).filter(x => x.name);
+
+      const wantedSet = wantedList.map(x => x.name.toLowerCase());
+      const typeByName = {};
+      wantedList.forEach(x => { typeByName[x.name.toLowerCase()] = x.type; });
+
+      console.log('[loadSubjects] profile subjects =', wanted);   // 🔍 debug
+      if (!wantedSet.length) { SUBJECTS = []; renderSubjects([]); return; }
+
+      // Student ki grade aur board
+      const grade = (PROFILE.class || '').toString().trim().toLowerCase();
+      const board = (PROFILE.board || '').toString().trim().toLowerCase();
+
+      // saare subjects laao, phir naam/code + fees-scope (grade/board) se match karo
+      const { data: allSubjects, error: sErr } = await sb.from('subjects').select('*');
+      if (sErr) throw sErr;
+
+      const picked = (allSubjects || []).filter(s => {
+        const nameMatch = wantedSet.includes((s.name || '').trim().toLowerCase())
+                       || wantedSet.includes((s.code || '').trim().toLowerCase());
+        if (!nameMatch) return false;
+        // subject ke fees array me student ki grade+board ho to hi dikhao.
+        // fees khaali ho to sirf naam se match (koi grade/board restriction nahi).
+        const fees = parseFees(s.fees);
+        if (!fees.length) return true;
+        return fees.some(f => feeMatches(f, grade, board));
+      });
+
+      console.log('[loadSubjects] matched subjects =', picked.map(s => s.name));  // 🔍 debug
+      if (!picked.length) { SUBJECTS = []; renderSubjects([]); return; }
+
+      const enriched = await Promise.all(picked.map(async s => {
+        let done = 0, avg = 0;
+
+        // Per-subject class type: pehle profile array se, warna preferred, warna group
+        const rawType = typeByName[(s.name || '').trim().toLowerCase()]
+                     || typeByName[(s.code || '').trim().toLowerCase()]
+                     || prefType || 'group';
+        const subjType = /ind|1|one/.test(String(rawType).toLowerCase()) ? 'individual' : 'group';
+
+        // Stats load karo (progress/avg dikhane ke liye)
+        const [{ count }, { data: scores }, { data: pubAssigns }] = await Promise.all([
+          sb.from('assessments').select('*', { count: 'exact', head: true }).eq('subject_id', s.id).eq('student_id', PROFILE.id),
+          sb.from('assessments').select('student_score, name').eq('subject_id', s.id).eq('student_id', PROFILE.id),
+          sb.from('assignments').select('title, max_score').eq('subject_id', s.id).eq('status', 'published')
+        ]);
+        done = count || 0;
+        const maxMap = {};
+        (pubAssigns || []).forEach(a => { maxMap[(a.title || '').trim()] = Number(a.max_score) || 0; });
+        avg = avgPercent(scores, maxMap) || 0;
+
+        return {
+          ...s,
+          _status: 'active',      // ✅ bina payment ke unlock
+          _class_type: subjType,
+          _done: done,
+          _avg: avg,
+          _due_in: 0,
+          _last_paid: '—',
+          _valid_until: '—',
+          _validity_pct: 0
+        };
+      }));
+
+      SUBJECTS = enriched;
+      renderSubjects(enriched);
+    } catch (e) {
+      console.error('loadSubjects error:', e);
+      toast('Could not load subjects: ' + e.message, 'err');
+      SUBJECTS = [];
+      renderSubjects([]);
+    }
+    return;
+  }
+
+  /* ════════════════════════════════════════════════
+     ⬇️ PURANA PAYMENT-WALA CODE (jaisa pehle tha) ⬇️
+     Yeh tabhi chalega jab upar PAYMENTS_ENABLED = true hoga.
+     Comma-wali grade/board ko match karta hai + payment lock.
+  ════════════════════════════════════════════════ */
   try {
     const grade = (PROFILE.class || '').toString().trim();
     const board = (PROFILE.board || '').toString().trim();
 
-    // Saare subjects laao, phir JS me filter karo (comma-wali grade/board ke liye)
+    // Saare subjects laao, phir fees-scope (grade/board) se filter karo
     const { data: allSubjects, error: sErr } = await sb.from('subjects').select('*');
     if (sErr) throw sErr;
 
-    // Helper: comma-separated list me student ki value hai ya "All" hai?
-    const matchField = (fieldValue, studentValue) => {
-      if (!fieldValue) return true;              // khaali = sabke liye
-      const list = fieldValue.split(',').map(x => x.trim().toLowerCase());
-      if (list.includes('all')) return true;     // "All" = sabke liye
-      return list.includes(studentValue.toLowerCase());
-    };
-
-    const rawSubjects = (allSubjects || []).filter(s =>
-      matchField(s.grade, grade) && matchField(s.board, board)
-    );
+    const rawSubjects = (allSubjects || []).filter(s => {
+      const fees = parseFees(s.fees);
+      if (!fees.length) return true;                       // koi scope nahi to sabke liye
+      return fees.some(f => feeMatches(f, grade, board));
+    });
 
     if (!rawSubjects?.length) { SUBJECTS = []; renderSubjects([]); return; }
 
@@ -275,7 +481,7 @@ function buildCard(s) {
       <div class="class-type-chip">${classTypeLabel}</div>
       <div class="spb"><div class="spf" style="width:${pct}%"></div></div>
       <div class="spl"><span>${s._done}/${s.total_assessments} assessments</span><span>${pct}%</span></div>
-      ${s._due_in > 0 ? `<div class="due-chip ${urgent ? 'urgent' : ''}">
+      ${(PAYMENTS_ENABLED && s._due_in > 0) ? `<div class="due-chip ${urgent ? 'urgent' : ''}">
         ${urgent ? '🔴' : '💳'} Renewal in ${s._due_in}d</div>` : ''}
     </div>`;
   }
@@ -370,7 +576,18 @@ async function openSubject(subjectId) {
 
   renderAssessmentWidget(s);
   renderAvgWidget(s);
-  renderPayWidget(s);
+
+  /* ✅ Payment band — pay/renewal widget chhupa do.
+     Chalu karne ke liye upar PAYMENTS_ENABLED = true. */
+  if (PAYMENTS_ENABLED) {
+    const _pw = document.getElementById('pay-widget');
+    if (_pw) _pw.style.display = '';
+    renderPayWidget(s);
+  } else {
+    const _pw = document.getElementById('pay-widget');
+    if (_pw) _pw.style.display = 'none';
+  }
+
   showScreen('s-detail');
   const [monthly, assessments] = await Promise.all([fetchMonthly(s.id), fetchAssessments(s.id)]);
   renderChart(monthly);
@@ -474,11 +691,16 @@ async function fetchAssessments(subjectId) {
   (pubAssigns || []).forEach(a => { maxMap[(a.title || '').trim()] = Number(a.max_score) || 0; });
   return (data || []).map(r => {
     const max = Number(maxMap[(r.name || '').trim()]) || 0;
-    const toPct = v => max > 0 ? Math.round((Number(v) / max) * 100) : Number(v);
+    const rawScore = Number(r.student_score);
+    const rawAvg = Number(r.class_avg_score);
+    const pct = v => (max > 0 ? Math.round((Number(v) / max) * 100) : Number(v)); // bar ke liye
     return {
       name: r.name,
-      avg: toPct(r.class_avg_score), // ✅ % me
-      score: toPct(r.student_score), // ✅ % me
+      max,                              // ✅ teacher ne jo max daala (jaise 80 ya 120)
+      score: rawScore,                  // ✅ actual marks (raw)
+      avg: rawAvg,                      // ✅ class avg actual marks (raw)
+      scorePct: pct(rawScore),          // sirf bar width ke liye
+      avgPct: pct(rawAvg),              // sirf bar width ke liye
       remarks: (r.remarks || '').trim()
     };
   });
@@ -490,8 +712,8 @@ function renderTable(s, assessments) {
   document.getElementById('tbl-meta').textContent = `${done} completed · ${total - done} upcoming`;
 
   const rows = assessments.map((a, i) => {
-    const bc = a.score >= 80 ? 'high' : a.score >= 65 ? 'mid' : 'low';
-    const d = a.score - a.avg;
+    const bc = a.scorePct >= 80 ? 'high' : a.scorePct >= 65 ? 'mid' : 'low';
+    const maxTxt = a.max > 0 ? ' / ' + a.max : '';    // max maloom ho to dikhao
     const teacherRemark = (a.remarks || '').trim();
     const remarkHTML = teacherRemark
       ? `<span style="display:inline-block;padding:4px 12px;background:rgba(0,184,180,0.1);border:1px solid rgba(0,184,180,0.25);border-radius:8px;color:var(--teal);font-size:12px;font-weight:500;white-space:nowrap;">${teacherRemark}</span>`
@@ -500,23 +722,36 @@ function renderTable(s, assessments) {
     return `<tr>
       <td style="color:var(--muted);width:40px;">${String(i + 1).padStart(2, '0')}</td>
       <td style="font-weight:500;">${a.name}</td>
-      <td><div class="sbw"><span style="color:var(--muted);">${a.avg}%</span>
-        <div class="smb"><div class="smf mid" style="width:${a.avg}%"></div></div></div></td>
-      <td><div class="sbw"><span>${a.score}%</span>
-        <div class="smb"><div class="smf ${bc}" style="width:${a.score}%"></div></div>
-        <span class="dchip ${d >= 0 ? 'dpos' : 'dneg'}">${d >= 0 ? '+' : ''}${d}</span></div></td>
+      <td><div class="sbw"><span style="color:var(--muted);">${a.scorePct}%</span>
+        <div class="smb"><div class="smf mid" style="width:${a.scorePct}%"></div></div></div></td>
+      <td><div class="sbw"><span>${a.score}${maxTxt}</span>
+        <div class="smb"><div class="smf ${bc}" style="width:${a.scorePct}%"></div></div></div></td>
       <td>${remarkHTML}</td>
     </tr>`;
   });
 
   const upcoming = Array.from({ length: total - done }, () => `<tr class="upcoming"></tr>`);
   document.getElementById('asmnt-body').innerHTML = [...rows, ...upcoming].join('');
+
+  /* ✅ Header "Class Avg" ko "Percentage" me badlo (HTML chhune ki zaroorat nahi) */
+  const _body = document.getElementById('asmnt-body');
+  const _tbl = _body && _body.closest('table');
+  if (_tbl) {
+    _tbl.querySelectorAll('th').forEach(th => {
+      if (/class\s*avg/i.test(th.textContent || '')) th.textContent = 'Percentage';
+    });
+  }
 }
 
 /* ════════════════════════════════════════════════
    ✅ openPayment — classType parameter accept
+   (Payment band hai to kuch nahi hoga — sirf toast.)
 ════════════════════════════════════════════════ */
 function openPayment(subjectId, classType = 'group') {
+  /* ✅ Payment abhi band hai — koi payment screen open nahi hogi.
+     Chalu karne ke liye upar PAYMENTS_ENABLED = true kar dena. */
+  if (!PAYMENTS_ENABLED) { toast('Payment abhi band hai — baad me chalu hoga.'); return; }
+
   const s = SUBJECTS.find(x => x.id === subjectId);
   if (!s) return;
   CUR_SUBJ = s;
@@ -566,8 +801,12 @@ function selectMethod(m) {
 
 /* ════════════════════════════════════════════════
    ✅ submitPayment — class_type save (per-subject)
+   (Payment band hai to kuch submit nahi hoga.)
 ════════════════════════════════════════════════ */
 async function submitPayment() {
+  /* ✅ Payment abhi band hai */
+  if (!PAYMENTS_ENABLED) { toast('Payment abhi band hai — baad me chalu hoga.'); return; }
+
   if (!CUR_SUBJ || !CUR_METHOD) return;
   const btn = document.getElementById('pay-submit-btn');
   btn.disabled = true;
@@ -660,9 +899,12 @@ async function loadAssignments(subjectId) {
   section.style.display = 'block';
   list.innerHTML = '<div class="loading-state">Loading assignments...</div>';
   try {
-    const { data: assigns, error } = await sb.from('assignments').select('*')
+    const { data: assignsRaw, error } = await sb.from('assignments').select('*')
       .eq('subject_id', subjectId).eq('status', 'published').order('due_date');
     if (error) throw error;
+    /* ✅ Sirf student ki grade+board ke assignments dikhao */
+    const sg = (PROFILE.class || ''), sbd = (PROFILE.board || '');
+    const assigns = (assignsRaw || []).filter(a => assignmentInScope(a, sg, sbd));
     if (!assigns || assigns.length === 0) {
       lbl.textContent = '0 assignments';
       list.innerHTML = '<div class="loading-state">Abhi koi assignment nahi hai.</div>';
@@ -753,8 +995,13 @@ async function viewAssignment(assignId) {
   } else {
     contentHTML = '<div style="padding:20px;text-align:center;color:var(--muted);">No content available.</div>';
   }
+  const teacherComment = (sub && sub.teacher_remarks && sub.teacher_remarks.trim())
+    ? '<div style="margin-top:12px;padding:14px 16px;background:rgba(0,184,180,0.08);border:1px solid rgba(0,184,180,0.28);border-radius:10px;">'
+      + '<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--teal);font-weight:700;margin-bottom:6px;">📝 Teacher\'s Comment</div>'
+      + '<div style="font-size:13.5px;color:var(--cream);line-height:1.65;">' + sub.teacher_remarks + '</div></div>'
+    : '';
   const footerHTML = sub
-    ? '<div style="padding:14px 18px;background:rgba(72,199,142,0.1);border:1px solid rgba(72,199,142,0.3);border-radius:10px;display:flex;align-items:center;gap:12px;"><span style="font-size:22px;">✅</span><div><div style="color:#68d391;font-weight:600;">Assignment Submitted</div><div style="font-size:12px;color:var(--muted);">' + new Date(sub.submitted_at).toLocaleString('en-IN') + '</div></div></div>'
+    ? '<div style="padding:14px 18px;background:rgba(72,199,142,0.1);border:1px solid rgba(72,199,142,0.3);border-radius:10px;display:flex;align-items:center;gap:12px;"><span style="font-size:22px;">✅</span><div><div style="color:#68d391;font-weight:600;">Assignment Submitted</div><div style="font-size:12px;color:var(--muted);">' + new Date(sub.submitted_at).toLocaleString('en-IN') + '</div></div></div>' + teacherComment
     : overdue
       ? '<div style="padding:14px;background:rgba(252,129,129,0.1);border:1px solid rgba(252,129,129,0.3);border-radius:10px;color:#fc8181;font-weight:600;">Deadline passed — Submission closed</div>'
       : '<div style="text-align:right;"><button onclick="closeViewModal();openSubmitModal(\'' + a.id + '\',\'' + (a.title || '').replace(/'/g, "\\'") + '\');" style="padding:11px 28px;background:var(--gold);color:#111;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Submit Assignment →</button></div>';

@@ -25,9 +25,9 @@ function parseFees(fees) {
   return Array.isArray(fees) ? fees : [];
 }
 function _feeMatchOne(val, target) {
-  if (val == null || val === '') return true;               // khaali = sabke liye
+  if (val == null || val === '') return true;               // empty = applies to everyone
   const list = String(val).split(',').map(x => x.trim().toLowerCase());
-  if (list.includes('all')) return true;                    // "All" = sabke liye
+  if (list.includes('all')) return true;                    // "All" = applies to everyone
   return list.includes((target || '').toString().trim().toLowerCase());
 }
 function feeMatches(entry, grade, board) {
@@ -41,7 +41,7 @@ function feeNum(entry, classType) {
   for (const k of keys) { if (entry[k] != null) return Number(entry[k]) || 0; }
   return 0;
 }
-/* grade+board+classType ke hisaab se fee. grade/board na do to pehli entry. */
+/* Fee based on grade+board+classType. If no grade/board is given, use the first entry. */
 function getSubjectFee(subject, classType = 'group', grade = null, board = null) {
   if (!subject) return 0;
   const fees = parseFees(subject.fees);
@@ -51,21 +51,21 @@ function getSubjectFee(subject, classType = 'group', grade = null, board = null)
   if (!entry) entry = fees[0];
   return feeNum(entry, classType);
 }
-/* subject kis board/grade ke liye hai — chip text (e.g. "ICSE 9, ISC 12") */
+/* Which board/grade the subject is for — chip text (e.g. "ICSE 9, ISC 12") */
 function subjectScopeLabel(subject) {
   const fees = parseFees(subject && subject.fees);
   if (!fees.length) return '—';
   const combos = fees.map(f => ((f.board || 'All') + ' ' + (f.grade || 'All')).trim());
   return [...new Set(combos)].join(', ');
 }
-/* pehli fee entry ka board (color tag ke liye) */
+/* The board of the first fee entry (for the color tag) */
 function subjectFirstBoard(subject) {
   const fees = parseFees(subject && subject.fees);
   return fees.length ? (fees[0].board || '') : '';
 }
 
 /* ════════════════════════════════════════════════
-   ✅ profiles.subjects parse — student ne kaunse subject liye
+   ✅ profiles.subjects parse — which subjects the student took
    format 1: ["Economics","Math"]
    format 2: [{"name":"Economics","type":"group"}, ...]
 ════════════════════════════════════════════════ */
@@ -83,7 +83,7 @@ function parseProfileSubjects(subs) {
     return { name: String(item).trim(), type: '' };
   }).filter(x => x.name);
 }
-/* profile ne ye subject liya hai? haan to uski entry (type ke liye) lautao */
+/* Did the profile take this subject? If yes, return its entry (for the type) */
 function profileSubjectEntry(profileSubjects, subject) {
   const list = parseProfileSubjects(profileSubjects);
   const sn = (subject.name || '').trim().toLowerCase();
@@ -96,21 +96,21 @@ function profileSubjectEntry(profileSubjects, subject) {
 function normClassType(raw) {
   return /ind|1|one/.test(String(raw || '').toLowerCase()) ? 'individual' : 'group';
 }
-/* assignment is grade+board ke liye hai? (grade/board khaali = sabke liye) */
+/* Is this assignment for this grade+board? (empty grade/board = applies to everyone) */
 function assignmentInScope(a, grade, board) {
   const ag = a.grade, ab = a.board;
   const noScope = (ag == null || ag === '') && (ab == null || ab === '');
-  if (noScope) return true;                       // purane assignments = sabke liye
+  if (noScope) return true;                       // old assignments = apply to everyone
   return _feeMatchOne(ag, grade) && _feeMatchOne(ab, board);
 }
-/* ✅ Raw score ko max_score ke hisaab se % banata hai, phir average nikalta hai */
+/* ✅ Converts raw score to a % using max_score, then computes the average */
 function avgPercent(rows, maxMap) {
   const pcts = [];
   (rows || []).forEach(r => {
     const score = Number(r.student_score);
     if (isNaN(score)) return;
     const max = Number(maxMap[(r.name || '').trim()]) || 0;
-    pcts.push(max > 0 ? (score / max) * 100 : score); // max na mile to as-is
+    pcts.push(max > 0 ? (score / max) * 100 : score); // if max is unknown, use as-is
   });
   return pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
 }
@@ -257,7 +257,7 @@ function doLogout() {
 
 /* ════════════════════════════════════════════════
    ✅ FIXED loadDashboard — Saare enrollments lo
-   (sirf active nahi, pending bhi)
+   (not just active, but pending too)
 ════════════════════════════════════════════════ */
 async function loadDashboard() {
   setTopbars();
@@ -290,19 +290,19 @@ async function loadDashboard() {
   const PAID_ST = new Set(['active', 'paid', 'completed', 'success', 'confirmed', 'verified']);
 
   /* ════════════════════════════════════════════════
-     ✅ Har subject ko uske fees ke grade/board combos me
-     alag-alag CARD banao. Enrolled students ab
-     profiles.subjects (jsonb) se aate hain — student_subjects se nahi.
+     ✅ Build a separate CARD for each grade/board combo in
+     a subject's fees. Enrolled students now come from
+     profiles.subjects (jsonb) — not from student_subjects.
   ════════════════════════════════════════════════ */
 
-  /* Saare student profiles ek baar laao */
+  /* Fetch all student profiles once */
   const { data: allProfiles } = await sb
     .from('profiles')
     .select('id, full_name, username, roll_number, class, board, subjects, preferred_class_type');
 
   const cards = [];
   for (const s of subs) {
-    /* Is subject ko jin students ne profiles.subjects me liya hai */
+    /* The students who took this subject in their profiles.subjects */
     const enrolledProfiles = (allProfiles || []).map(p => {
       const entry = profileSubjectEntry(p.subjects, s);
       if (!entry) return null;
@@ -324,7 +324,7 @@ async function loadDashboard() {
     const maxMap = {};
     (pubAssigns || []).forEach(a => { maxMap[(a.title || '').trim()] = Number(a.max_score) || 0; });
 
-    /* fees ke combos. fees na ho to ek hi card (saare enrolled students) */
+    /* fee combos. If there are no fees, just one card (all enrolled students) */
     const fees = parseFees(s.fees);
     const combos = fees.length ? fees : [{ grade: null, board: null, _all: true }];
 
@@ -335,11 +335,11 @@ async function loadDashboard() {
       );
       const studentIds = new Set(inCombo.map(p => p.id));
 
-      /* Payment band hai → har enrolled student ACTIVE */
+      /* Payments off → every enrolled student is ACTIVE */
       const active = inCombo.length;
       const pending = 0;
 
-      /* verified payments (agar koi ho) */
+      /* verified payments (if any) */
       const paidRecs = (payRecs || []).filter(p =>
         studentIds.has(p.student_id) && PAID_ST.has((p.status || '').toLowerCase())
       );
@@ -352,11 +352,11 @@ async function loadDashboard() {
         expectedTotal += getSubjectFee(s, p._class_type, p.class, p.board);
       });
 
-      /* Avg — sirf is combo ke students ke scores */
+      /* Avg — only the scores of students in this combo */
       const comboScores = (scores || []).filter(r => studentIds.has(r.student_id));
       const avg = avgPercent(comboScores, maxMap) || 0;
 
-      /* Is combo (grade+board) ke published assignments ki ginti */
+      /* Count of published assignments for this combo (grade+board) */
       const aCount = combo._all
         ? (pubAssigns || []).length
         : (pubAssigns || []).filter(a => assignmentInScope(a, combo.grade, combo.board)).length;
@@ -494,7 +494,7 @@ function renderCurrGrid(list) {
 }
 
 /* ══════════════════════════════════════════════════════════════
-   ✅ FIXED openSubject — Pending students bhi load karo
+   ✅ FIXED openSubject — Load pending students too
 ══════════════════════════════════════════════════════════════ */
 async function openSubject(id) {
   CURR = SUBJECTS.find(s => (s._cardId || s.id) === id) || SUBJECTS.find(s => s.id === id);
@@ -521,7 +521,7 @@ async function openSubject(id) {
     return;
   }
 
-  /* Step 1: Assignments — sirf is card (grade+board combo) ke */
+  /* Step 1: Assignments — only for this card (grade+board combo) */
   const {
     data: asgns
   } = await sb.from('assignments').select('*')
@@ -537,7 +537,7 @@ async function openSubject(id) {
   renderPublishedList();
 
   /* ✅ Step 2: Is card (combo) ke enrolled students — profiles.subjects se
-     (dashboard me pehle hi nikaale ja chuke hain) */
+     (already pulled earlier in the dashboard) */
   const rawStudents = (CURR._students || []).map(p => ({
     id: p.id,
     full_name: p.full_name || null,
@@ -546,12 +546,12 @@ async function openSubject(id) {
     class: p.class || null,
     board: p.board || null,
     _class_type: p._class_type || 'group',
-    _is_active: true,      /* payment band → active */
+    _is_active: true,      /* payments off → active */
     _pay: 'active',
     _avg: null
   }));
 
-  /* is card kis grade+board ka hai (submission-students filter ke liye) */
+  /* Which grade+board this card is for (used to filter submission students) */
   const _comboFilter = (cls, brd) => {
     if (CURR._grade == null && CURR._board == null) return true;   // "all" card
     return feeMatches({ grade: CURR._grade, board: CURR._board }, cls, brd);
@@ -570,7 +570,7 @@ async function openSubject(id) {
     (subRows || []).forEach(sub => {
       if (sub.student_id && !knownIds.has(sub.student_id)) {
         const pr = sub.profiles || {};
-        /* ✅ Sirf is combo (grade+board) ke students hi add karo */
+        /* ✅ Only add students from this combo (grade+board) */
         if (!_comboFilter(pr.class, pr.board)) return;
         rawStudents.push({
           id: sub.student_id,
@@ -615,7 +615,7 @@ async function openSubject(id) {
   }
 
   /* Step 5: Avg scores */
-  /* ✅ assignment title -> max_score map (CUR_ASSIGNS pehle hi load ho chuke hain) */
+  /* ✅ assignment title -> max_score map (CUR_ASSIGNS are already loaded) */
   const maxMap = {};
   CUR_ASSIGNS.forEach(a => { maxMap[(a.title || '').trim()] = Number(a.max_score) || 0; });
 
@@ -625,7 +625,7 @@ async function openSubject(id) {
       data: sc
     } = await sb.from('assessments')
       .select('student_score, name').eq('student_id', s.id).eq('subject_id', CURR.id);
-    return { ...s, _avg: avgPercent(sc, maxMap) }; // ✅ % me, raw nahi
+    return { ...s, _avg: avgPercent(sc, maxMap) }; // ✅ as a %, not raw
   }));
 
   console.log('[openSubject] Total students loaded:', CUR_STUDENTS.length);
@@ -983,8 +983,8 @@ async function publishAssignment() {
     file_url: fileUrl,
     file_name: fileName,
     status: 'published',
-    grade: CURR._grade || null,   /* ✅ sirf is grade ke liye */
-    board: CURR._board || null    /* ✅ sirf is board ke liye */
+    grade: CURR._grade || null,   /* ✅ for this grade only */
+    board: CURR._board || null    /* ✅ for this board only */
   }).select().single();
   if (error) {
     toast('Error: ' + error.message, 'err');
@@ -1137,7 +1137,7 @@ function renderSubList(sm) {
         '<div class="s-av" style="background:' + av + ';margin-top:4px;">' + iv + '</div>' +
         '<div style="flex:1;min-width:0;"><div class="sub-name">' + name + '</div>' +
         (username ? '<div style="font-size:11.5px;color:var(--teal);margin-top:1px;">' + username + '</div>' : '') +
-        
+        '<div class="sub-roll">Roll No. <strong style="color:var(--cream);">' + roll + '</strong>' + cls + '</div>' +
         (fname ? '<div style="font-size:11px;color:var(--muted);margin-top:5px;">📎 ' + fname + (fsize ? ' (' + fsize + ')' : '') + '</div>' : '') +
         '</div><div style="text-align:right;flex-shrink:0;min-width:140px;">' +
         '<div style="font-size:11px;color:var(--green);font-weight:700;margin-bottom:3px;">✓ Submitted</div>' +
@@ -1174,7 +1174,7 @@ function onMarkAssignChange(id) {
   renderMarkRows();
 }
 
-/* ✅ Student ki submitted worksheet download karo (cross-origin → blob ke through) */
+/* ✅ Download the student's submitted worksheet (cross-origin → via a blob) */
 function downloadSubmission(jsonStr) {
   let meta;
   try { meta = JSON.parse(jsonStr); } catch (e) { return; }
@@ -1196,7 +1196,7 @@ async function _downloadFile(url, filename) {
     document.body.removeChild(a);
     setTimeout(() => { try { URL.revokeObjectURL(objUrl); } catch (e) {} }, 4000);
   } catch (e) {
-    /* fallback: naye tab me kholo */
+    /* fallback: open in a new tab */
     window.open(url, '_blank');
   }
 }
@@ -1253,7 +1253,7 @@ async function renderMarkRows() {
         <div class="s-av" style="background:${av};width:28px;height:28px;font-size:11px">${iv}</div>
         <div>
           <div style="font-size:13.5px;font-weight:500">${s.full_name || '—'}</div>
-          <div style="font-size:11.5px;color:var(--muted)">${s.username ? '@' + s.username : ''}</div>
+          <div style="font-size:11.5px;color:var(--muted)">${s.roll_number || ''}${s.username ? ' · @' + s.username : ''}</div>
         </div>
       </div>
       <input class="m-score _sc" type="number" min="0"
@@ -1346,17 +1346,17 @@ function renderNoticeList(notices) {
     </div>`).join('');
 }
 
-/* ✅ Notice delete — student ke dashboard se bhi hat jayega (same table) */
+/* ✅ Notice delete — it disappears from the student dashboard too (same table) */
 async function deleteNotice(id) {
   if (!id) return;
   if (!confirm('Delete this notice? It will also be removed from student dashboards.')) return;
   if (!IS_LIVE) { toast('⚠ Supabase is not connected.', 'err'); return; }
   try {
-    /* .select() lagaya taaki pata chale kitni rows actually delete hui */
+    /* used .select() so we know how many rows were actually deleted */
     const { data, error } = await sb.from('notices').delete().eq('id', id).select();
     if (error) throw error;
     if (!data || data.length === 0) {
-      /* RLS ne block kiya — koi row delete nahi hui */
+      /* RLS blocked it — no rows were deleted */
       toast('Delete blocked. Run the notices delete policy in Supabase.', 'err');
       return;
     }
@@ -1397,7 +1397,7 @@ async function postNotice() {
 }
 
 /* ════════════════════════════════════════════════
-   ✅ FIXED openSubReview — har file type dikhao
+   ✅ FIXED openSubReview — show every file type
 ════════════════════════════════════════════════ */
 function openSubReview(jsonStr) {
   let meta;
@@ -1426,11 +1426,11 @@ function openSubReview(jsonStr) {
   /* ✅ Checked-worksheet upload box (modal me JS se inject) */
   mountCheckedUI(meta);
 
-  /* ✅ File ko uske type ke hisaab se dikhao (PDF / Word / image / etc.) */
+  /* ✅ Show the file according to its type (PDF / Word / image / etc.) */
   renderSubmissionFile(meta.url, meta.fname);
 }
 
-/* ✅ Review modal me "Upload Checked Worksheet" box ek baar bana do, phir update karte raho */
+/* ✅ Build the "Upload Checked Worksheet" box in the review modal once, then keep updating it */
 function mountCheckedUI(meta) {
   const saveBtn = _('srv-save-btn');
   if (!saveBtn) return;
@@ -1446,7 +1446,7 @@ function mountCheckedUI(meta) {
       + '<button id="srv-checked-btn" onclick="uploadCheckedWorksheet()" style="padding:8px 18px;background:var(--teal);border:none;border-radius:8px;color:#fff;font-family:\'DM Sans\',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;">Upload Checked File →</button>';
     saveBtn.parentNode.insertBefore(wrap, saveBtn);
   }
-  /* reset + existing checked file dikhao */
+  /* reset + show the existing checked file */
   const fileInp = _('srv-checked-file');
   if (fileInp) fileInp.value = '';
   setTxt('srv-checked-status', (meta.checkedUrl)
@@ -1454,7 +1454,7 @@ function mountCheckedUI(meta) {
     : 'No checked file uploaded yet.');
 }
 
-/* ✅ Checked worksheet upload → assignment_submissions me save → student ko dikhega */
+/* ✅ Checked worksheet upload → save in assignment_submissions → visible to the student */
 async function uploadCheckedWorksheet() {
   const fileInp = _('srv-checked-file');
   const btn = _('srv-checked-btn');
@@ -1497,13 +1497,13 @@ async function uploadCheckedWorksheet() {
 }
 
 /* ════════════════════════════════════════════════
-   ✅ NEW: Submission file ko sahi viewer me dikhao
+   ✅ NEW: Show the submission file in the right viewer
 ════════════════════════════════════════════════ */
 async function renderSubmissionFile(url, fname) {
   const fileEl = _('srv-file-area');
   if (!fileEl) return;
 
-  /* purana blob memory se hatao */
+  /* free the previous blob from memory */
   if (_srvBlobUrl) { try { URL.revokeObjectURL(_srvBlobUrl); } catch (e) {} _srvBlobUrl = null; }
 
   if (!url) {
@@ -1521,7 +1521,7 @@ async function renderSubmissionFile(url, fname) {
 
   fileEl.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;"><span class="spinner" style="margin-right:8px;"></span>Loading file…</div>';
 
-  /* ── WORD / PPT / EXCEL → Microsoft ka official viewer ── */
+  /* ── WORD / PPT / EXCEL → Microsoft's official viewer ── */
   if (isOffice) {
     const officeSrc = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(url);
     fileEl.innerHTML =
@@ -1529,7 +1529,7 @@ async function renderSubmissionFile(url, fname) {
     return;
   }
 
-  /* ── PDF aur IMAGE ke liye file ko blob ki tarah laao ── */
+  /* ── For PDF and IMAGE, fetch the file as a blob ── */
   try {
     const resp = await fetch(url, { cache: 'no-store' });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -1555,7 +1555,7 @@ async function renderSubmissionFile(url, fname) {
       return;
     }
 
-    /* koi aur type */
+    /* any other type */
     fileEl.innerHTML =
       '<div style="padding:24px;text-align:center;color:#cbd5e1;font-size:13px;line-height:1.7;">'
       + 'This file cannot be previewed here (' + (ext || 'unknown') + ').<br><br>'
@@ -1573,7 +1573,7 @@ async function renderSubmissionFile(url, fname) {
 function closeSubReview() {
   const modal = _('sub-review-modal');
   if (modal) modal.style.display = 'none';
-  /* blob memory se hatao */
+  /* free the blob from memory */
   if (_srvBlobUrl) { try { URL.revokeObjectURL(_srvBlobUrl); } catch (e) {} _srvBlobUrl = null; }
   const fileEl = _('srv-file-area');
   if (fileEl) fileEl.innerHTML = '';

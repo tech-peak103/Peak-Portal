@@ -1452,3 +1452,189 @@ tbody td {
     border: 1px solid rgba(232, 146, 74, .35);
     color: var(--orange);
 }
+
+
+
+
+
+
+
+@media (max-width: 1024px) {
+  html, body { max-width: 100%; overflow-x: hidden; }
+  img { max-width: 100%; height: auto; }
+ 
+  .pc { padding: 28px 22px; }
+ 
+  /* 4-up stats become 2-up */
+  .stats-row { grid-template-columns: repeat(2, 1fr); }
+  /* 3-up grids become 2-up */
+  .pay-grid  { grid-template-columns: repeat(2, 1fr); }
+  .curr-grid { grid-template-columns: repeat(2, 1fr); }
+ 
+  .login-left { padding: 48px 44px; }
+  .login-headline { font-size: 42px; }
+}
+ 
+/* ── LOGIN: stack the two panels ── */
+@media (max-width: 900px) {
+  .login-wrap { flex-direction: column; }
+  .login-left {
+    padding: 40px 28px 28px;
+    text-align: left;
+  }
+  .login-brand { margin-bottom: 28px; }
+  .login-headline { font-size: 34px; margin-bottom: 14px; }
+  .login-sub { max-width: 100%; }
+  .role-pills { margin-top: 24px; }
+ 
+  .login-right {
+    width: 100%;
+    border-left: none;
+    border-top: 1px solid var(--border);
+    padding: 36px 28px 48px;
+  }
+}
+ 
+/* ── iPad portrait / large phones ── */
+@media (max-width: 768px) {
+  .pc { padding: 22px 16px; }
+ 
+  /* Topbar wraps onto multiple rows */
+  .topbar {
+    height: auto;
+    min-height: 60px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    gap: 8px 10px;
+    row-gap: 8px;
+  }
+  .tb-sub-txt { display: none; }
+  .breadcrumb { font-size: 12px; }
+ 
+  /* Grids collapse */
+  .stats-row { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .pay-grid  { grid-template-columns: 1fr; }
+  .curr-grid { grid-template-columns: 1fr; }
+ 
+  /* Subject detail header stacks */
+  .det-header { flex-direction: column; align-items: stretch; gap: 18px; }
+  .det-title  { font-size: 26px; }
+  .dqs { width: 100%; flex-wrap: wrap; gap: 10px; }
+  .dqs-box { flex: 1 1 calc(50% - 5px); min-width: 0; }
+ 
+  /* Roster card header stacks; search goes full width */
+  .stu-card-hd { flex-direction: column; align-items: stretch; gap: 12px; }
+  .search-box-inp { width: 100%; box-sizing: border-box; }
+ 
+  /* Upload form single column */
+  .upload-grid { grid-template-columns: 1fr; }
+  .aw-body { padding: 22px 16px 26px; }
+ 
+  /* Tabs scroll sideways instead of squashing */
+  .aw-tabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .aw-tabs::-webkit-scrollbar { display: none; }
+  .aw-tab {
+    flex: 0 0 auto;
+    padding: 14px 16px;
+    font-size: 13px;
+    white-space: nowrap;
+  }
+ 
+  /* Assignment-library stat cards (inline grid in HTML) → 1 column */
+  #asgn-stats-row { grid-template-columns: 1fr !important; }
+ 
+  /* Submission review modal → single column (file on top, comment below) */
+  #sub-review-modal > div { max-width: 100% !important; }
+  #sub-review-modal [style*="1fr 340px"] {
+    grid-template-columns: 1fr !important;
+    min-height: 0 !important;
+  }
+  #sub-review-modal [style*="border-right:1px solid rgba(0,184,180,0.1)"] {
+    border-right: none !important;
+    border-bottom: 1px solid rgba(0,184,180,0.1) !important;
+  }
+ 
+  /* Toast spans the width nicely on small screens */
+  #toast { left: 12px; right: 12px; max-width: none; }
+}
+ 
+/* ── Phones ── */
+@media (max-width: 600px) {
+  /* Topbar no longer sticky (so a tall wrapped bar doesn't cover content) */
+  .topbar { position: static; }
+ 
+  .page-title { font-size: 24px; }
+  .det-title  { font-size: 22px; }
+ 
+  /* Everything to a single column */
+  .stats-row { grid-template-columns: 1fr; }
+  .dqs-box   { flex: 1 1 100%; }
+ 
+  /* Submission rows: the right-side block drops to its own full line */
+  .sub-row { flex-wrap: wrap; }
+  .sub-row [style*="min-width:140px"] {
+    min-width: 0 !important;
+    width: 100%;
+    text-align: left !important;
+    margin-top: 8px;
+  }
+ 
+  /* Mark-scores: hide the desktop column header (rows use placeholders),
+     let each row wrap and put the remarks box on its own line */
+  #pane-mark [style*="1.5fr .6fr"] { display: none !important; }
+  .mark-row { flex-wrap: wrap; gap: 8px 10px; }
+  .mark-row .m-remarks { flex: 1 1 100%; order: 5; }
+ 
+  .mark-hd-row { flex-direction: column; align-items: stretch; }
+  .mark-hd-row .save-btn { width: 100%; }
+  .mark-hd-row select { width: 100% !important; }
+}
+ 
+/* ── Small phones (iPhone SE etc.) ── */
+@media (max-width: 420px) {
+  .pc { padding: 18px 12px; }
+  .login-left { padding: 32px 20px 22px; }
+  .login-right { padding: 30px 20px 40px; }
+  .login-headline { font-size: 28px; }
+  .stat-val { font-size: 30px; }
+  .aw-tab { padding: 12px 13px; font-size: 12.5px; }
+  .dqs-box { padding: 12px 14px; }
+}
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -10,16 +10,16 @@ if (IS_LIVE) {
 /* ════════════════════════════════════════════════
    ✅ PAYMENT MASTER SWITCH
    ------------------------------------------------
-   Abhi payment BAND hai (false).
-   - Student ko sirf wahi subjects dikhenge jo uske
-     profiles.subjects me likhe hain (grade/board match ke saath).
+   Payments are currently OFF (false).
+   - The student will only see the subjects listed in their
+     profiles.subjects (with a grade/board match).
      e.g. [{"name":"Economics","type":"group"},{"name":"Math","type":"individual"}]
-   - Wo sabhi subjects bina payment ke ACTIVE/unlock dikhenge,
-     teacher aur group/1-on-1 chip ke saath.
+   - All those subjects are shown ACTIVE/unlocked without payment,
+     along with the teacher and a group/1-on-1 chip.
 
-   👉 Jab payment dobara chalu karna ho, neeche
-      false ki jagah true kar dena. Poora purana
-      payment code waise ka waise hi file me maujood hai.
+   👉 To turn payments back on, change false to true
+      below. The entire old payment code is still
+      present in this file, untouched.
 ════════════════════════════════════════════════ */
 const PAYMENTS_ENABLED = false;
 
@@ -28,28 +28,28 @@ function loadSession() { try { return JSON.parse(sessionStorage.getItem('pp_stud
 function clearSession() { sessionStorage.removeItem('pp_student'); }
 
 /* ════════════════════════════════════════════════
-   ✅ HELPERS — Per-subject fee aur label
+   ✅ HELPERS — Per-subject fee and label
 ════════════════════════════════════════════════ */
-/* ✅ fees jsonb parse + matching helpers (naya schema) */
+/* ✅ fees jsonb parse + matching helpers (new schema) */
 function parseFees(fees) {
   if (!fees) return [];
   if (typeof fees === 'string') { try { fees = JSON.parse(fees); } catch { return []; } }
   return Array.isArray(fees) ? fees : [];
 }
 function _feeMatchOne(val, target) {
-  if (val == null || val === '') return true;               // khaali = sabke liye
+  if (val == null || val === '') return true;               // empty = applies to everyone
   const list = String(val).split(',').map(x => x.trim().toLowerCase());
-  if (list.includes('all')) return true;                    // "All" = sabke liye
+  if (list.includes('all')) return true;                    // "All" = applies to everyone
   return list.includes((target || '').toString().trim().toLowerCase());
 }
 function feeMatches(entry, grade, board) {
   return _feeMatchOne(entry.grade, grade) && _feeMatchOne(entry.board, board);
 }
-/* assignment is grade+board ke liye hai? (grade/board khaali = sabke liye) */
+/* Is this assignment for this grade+board? (empty grade/board = applies to everyone) */
 function assignmentInScope(a, grade, board) {
   const ag = a.grade, ab = a.board;
   const noScope = (ag == null || ag === '') && (ab == null || ab === '');
-  if (noScope) return true;                       // purane assignments = sabke liye
+  if (noScope) return true;                       // old assignments = apply to everyone
   return _feeMatchOne(ag, grade) && _feeMatchOne(ab, board);
 }
 function feeNum(entry, classType) {
@@ -60,7 +60,7 @@ function feeNum(entry, classType) {
   for (const k of keys) { if (entry[k] != null) return Number(entry[k]) || 0; }
   return 0;
 }
-/* student ki grade+board ke hisaab se sahi fee entry */
+/* The correct fee entry based on the student's grade+board */
 function getStudentFeeEntry(subject) {
   const fees = parseFees(subject && subject.fees);
   if (!fees.length) return null;
@@ -71,14 +71,14 @@ function getStudentFeeEntry(subject) {
 function getGroupFee(subject) {
   return feeNum(getStudentFeeEntry(subject), 'group');
 }
-/* ✅ Raw score ko max_score ke hisaab se % banata hai, phir average nikalta hai */
+/* ✅ Converts raw score to a % using max_score, then computes the average */
 function avgPercent(rows, maxMap) {
   const pcts = [];
   (rows || []).forEach(r => {
     const score = Number(r.student_score);
     if (isNaN(score)) return;
     const max = Number(maxMap[(r.name || '').trim()]) || 0;
-    pcts.push(max > 0 ? (score / max) * 100 : score); // max na mile to as-is
+    pcts.push(max > 0 ? (score / max) * 100 : score); // if max is unknown, use as-is
   });
   return pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : null;
 }
@@ -171,7 +171,7 @@ async function doLogin() {
     } else {
       const { data, error } = await sb.rpc('student_login', { p_username: user, p_password: pass });
       if (error) throw new Error('Login error: ' + error.message);
-      if (!data || !data.success) throw new Error('Galat username ya password.');
+      if (!data || !data.success) throw new Error('Incorrect username and password.');
       PROFILE = data;
     }
     saveSession(PROFILE);
@@ -214,7 +214,7 @@ async function loadNotices() {
         <div class="ni-date">${fmtDate(n.created_at)}</div>
       </div>
     </div>`).join('');
-  wireBell();   // 🔔 icon ko notice board se jodo
+  wireBell();   // 🔔 connect the bell icon to the notice board
 }
 
 /* ✅ Notification bell pe click → notice board tak le jao */
@@ -225,12 +225,12 @@ function scrollToNotices() {
   if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
 
-/* bell icon dhoondh ke click handler lagao (🔔 emoji ya bell class se) */
+/* Find the bell icon and attach a click handler (via 🔔 emoji or a bell class) */
 function wireBell() {
   if (window._bellWired) return;
   let bell = document.getElementById('bell') || document.querySelector('.bell, [class*="bell"], [class*="notif"]');
   if (!bell) {
-    // emoji 🔔 wale leaf element ko dhoondo
+    // Find the leaf element containing the 🔔 emoji
     const nodes = document.querySelectorAll('span, button, a, i, div');
     for (const el of nodes) {
       if (el.children.length === 0 && /🔔/.test(el.textContent || '')) { bell = el; break; }
@@ -247,23 +247,23 @@ function wireBell() {
 /* ════════════════════════════════════════════════
    ✅ loadSubjects
    ------------------------------------------------
-   PAYMENTS_ENABLED = false  → sirf enrolled subjects, sab ACTIVE (bina payment)
-   PAYMENTS_ENABLED = true   → purana behaviour (grade/board match + payment lock)
+   PAYMENTS_ENABLED = false  → only enrolled subjects, all ACTIVE (no payment)
+   PAYMENTS_ENABLED = true   → old behaviour (grade/board match + payment lock)
 ════════════════════════════════════════════════ */
 async function loadSubjects() {
   if (!IS_LIVE) { SUBJECTS = DEMO.subjects; renderSubjects(SUBJECTS); return; }
 
   /* ════════════════════════════════════════════════
-     ✅ PAYMENT BAND MODE
-     Student ke profile me jo subjects list hai usi se dikhao.
+     ✅ PAYMENTS-OFF MODE
+     Show subjects based on the list in the student's profile.
      profiles.subjects  ->  e.g. ["English","Economics","Maths"]
-     In sabhi subjects ko bina payment ke ACTIVE maan lo.
-     (Naam case/space ka farak nahi padta; code se bhi match hota hai.)
+     Treat all those subjects as ACTIVE without payment.
+     (Name case/spaces do not matter; it also matches by code.)
   ════════════════════════════════════════════════ */
   if (!PAYMENTS_ENABLED) {
     try {
-      // profiles me jo subjects diye hain wo nikaalo.
-      // pehle login/session se, agar na mile to SEEDHA profiles table se laao.
+      // Get the subjects listed in the profile.
+      // First from login/session; if not found, fetch directly from the profiles table.
       let wanted = PROFILE.subjects;
       let prefType = PROFILE.preferred_class_type;
 
@@ -280,14 +280,14 @@ async function loadSubjects() {
         }
       }
 
-      // agar DB se string ke roop me aaye to array bana do
+      // If it comes from the DB as a string, convert it to an array
       if (typeof wanted === 'string') {
         try { wanted = JSON.parse(wanted); }
         catch { wanted = wanted.split(',').map(x => x.trim()); }
       }
       if (!Array.isArray(wanted)) wanted = [];
 
-      /* wanted ko normalize karo. DONO format chalenge:
+      /* Normalize 'wanted'. BOTH formats work:
          1) Simple naam:       ["English","Economics","Maths"]
          2) Per-subject type:  [{"name":"English","type":"individual"},{"name":"Maths","type":"group"}]
       */
@@ -308,11 +308,11 @@ async function loadSubjects() {
       console.log('[loadSubjects] profile subjects =', wanted);   // 🔍 debug
       if (!wantedSet.length) { SUBJECTS = []; renderSubjects([]); return; }
 
-      // Student ki grade aur board
+      // Student grade and board
       const grade = (PROFILE.class || '').toString().trim().toLowerCase();
       const board = (PROFILE.board || '').toString().trim().toLowerCase();
 
-      // saare subjects laao, phir naam/code + fees-scope (grade/board) se match karo
+      // Fetch all subjects, then match by name/code + fees-scope (grade/board)
       const { data: allSubjects, error: sErr } = await sb.from('subjects').select('*');
       if (sErr) throw sErr;
 
@@ -320,8 +320,8 @@ async function loadSubjects() {
         const nameMatch = wantedSet.includes((s.name || '').trim().toLowerCase())
                        || wantedSet.includes((s.code || '').trim().toLowerCase());
         if (!nameMatch) return false;
-        // subject ke fees array me student ki grade+board ho to hi dikhao.
-        // fees khaali ho to sirf naam se match (koi grade/board restriction nahi).
+        // Only show if the subject's fees array contains the student's grade+board.
+        // If fees is empty, match by name only (no grade/board restriction).
         const fees = parseFees(s.fees);
         if (!fees.length) return true;
         return fees.some(f => feeMatches(f, grade, board));
@@ -333,13 +333,13 @@ async function loadSubjects() {
       const enriched = await Promise.all(picked.map(async s => {
         let done = 0, avg = 0;
 
-        // Per-subject class type: pehle profile array se, warna preferred, warna group
+        // Per-subject class type: first from the profile array, else preferred, else group
         const rawType = typeByName[(s.name || '').trim().toLowerCase()]
                      || typeByName[(s.code || '').trim().toLowerCase()]
                      || prefType || 'group';
         const subjType = /ind|1|one/.test(String(rawType).toLowerCase()) ? 'individual' : 'group';
 
-        // Stats load karo (progress/avg dikhane ke liye)
+        // Load stats (to show progress/avg)
         const [{ count }, { data: scores }, { data: pubAssigns }] = await Promise.all([
           sb.from('assessments').select('*', { count: 'exact', head: true }).eq('subject_id', s.id).eq('student_id', PROFILE.id),
           sb.from('assessments').select('student_score, name').eq('subject_id', s.id).eq('student_id', PROFILE.id),
@@ -352,7 +352,7 @@ async function loadSubjects() {
 
         return {
           ...s,
-          _status: 'active',      // ✅ bina payment ke unlock
+          _status: 'active',      // ✅ unlocked without payment
           _class_type: subjType,
           _done: done,
           _avg: avg,
@@ -375,21 +375,21 @@ async function loadSubjects() {
   }
 
   /* ════════════════════════════════════════════════
-     ⬇️ PURANA PAYMENT-WALA CODE (jaisa pehle tha) ⬇️
-     Yeh tabhi chalega jab upar PAYMENTS_ENABLED = true hoga.
-     Comma-wali grade/board ko match karta hai + payment lock.
+     ⬇️ OLD PAYMENT CODE (as it was before) ⬇️
+     This only runs when PAYMENTS_ENABLED = true above.
+     Matches comma-separated grade/board + payment lock.
   ════════════════════════════════════════════════ */
   try {
     const grade = (PROFILE.class || '').toString().trim();
     const board = (PROFILE.board || '').toString().trim();
 
-    // Saare subjects laao, phir fees-scope (grade/board) se filter karo
+    // Fetch all subjects, then filter by fees-scope (grade/board)
     const { data: allSubjects, error: sErr } = await sb.from('subjects').select('*');
     if (sErr) throw sErr;
 
     const rawSubjects = (allSubjects || []).filter(s => {
       const fees = parseFees(s.fees);
-      if (!fees.length) return true;                       // koi scope nahi to sabke liye
+      if (!fees.length) return true;                       // no scope means it applies to everyone
       return fees.some(f => feeMatches(f, grade, board));
     });
 
@@ -421,7 +421,7 @@ async function loadSubjects() {
         done = count || 0;
         const maxMap = {};
         (pubAssigns || []).forEach(a => { maxMap[(a.title || '').trim()] = Number(a.max_score) || 0; });
-        avg = avgPercent(scores, maxMap) || 0; // ✅ % me
+        avg = avgPercent(scores, maxMap) || 0; // ✅ as a %
         if (enroll && enroll.valid_until) {
           const exp = new Date(enroll.valid_until), today = new Date();
           dueIn = Math.max(0, Math.ceil((exp - today) / 86400000));
@@ -506,7 +506,7 @@ function buildCard(s) {
   const hasIndividual = indFee > 0;
 
   if (hasIndividual) {
-    /* Dono options dikhao */
+    /* Show both options */
     return `<div class="sub-card ${cc}">
       <div class="si ${cc}">${s.icon}<span style="float:right;font-size:14px;color:var(--muted);">🔒</span></div>
       <div class="sn">${s.name}</div>
@@ -560,7 +560,7 @@ async function openSubject(subjectId) {
   const s = SUBJECTS.find(x => x.id === subjectId);
   if (!s) return;
   if (s._status !== 'active') {
-    /* Locked card — student fee row se choose karega */
+    /* Locked card — the student will choose from the fee row */
     return;
   }
   CUR_SUBJ = s;
@@ -577,8 +577,8 @@ async function openSubject(subjectId) {
   renderAssessmentWidget(s);
   renderAvgWidget(s);
 
-  /* ✅ Payment band — pay/renewal widget chhupa do.
-     Chalu karne ke liye upar PAYMENTS_ENABLED = true. */
+  /* ✅ Payments off — hide the pay/renewal widget.
+     To enable, set PAYMENTS_ENABLED = true above. */
   if (PAYMENTS_ENABLED) {
     const _pw = document.getElementById('pay-widget');
     if (_pw) _pw.style.display = '';
@@ -693,14 +693,14 @@ async function fetchAssessments(subjectId) {
     const max = Number(maxMap[(r.name || '').trim()]) || 0;
     const rawScore = Number(r.student_score);
     const rawAvg = Number(r.class_avg_score);
-    const pct = v => (max > 0 ? Math.round((Number(v) / max) * 100) : Number(v)); // bar ke liye
+    const pct = v => (max > 0 ? Math.round((Number(v) / max) * 100) : Number(v)); // for the bar
     return {
       name: r.name,
-      max,                              // ✅ teacher ne jo max daala (jaise 80 ya 120)
+      max,                              // ✅ the max the teacher entered (e.g. 80 or 120)
       score: rawScore,                  // ✅ actual marks (raw)
       avg: rawAvg,                      // ✅ class avg actual marks (raw)
-      scorePct: pct(rawScore),          // sirf bar width ke liye
-      avgPct: pct(rawAvg),              // sirf bar width ke liye
+      scorePct: pct(rawScore),          // only for the bar width
+      avgPct: pct(rawAvg),              // only for the bar width
       remarks: (r.remarks || '').trim()
     };
   });
@@ -713,7 +713,7 @@ function renderTable(s, assessments) {
 
   const rows = assessments.map((a, i) => {
     const bc = a.scorePct >= 80 ? 'high' : a.scorePct >= 65 ? 'mid' : 'low';
-    const maxTxt = a.max > 0 ? ' / ' + a.max : '';    // max maloom ho to dikhao
+    const maxTxt = a.max > 0 ? ' / ' + a.max : '';    // show max if it is known
     const teacherRemark = (a.remarks || '').trim();
     const remarkHTML = teacherRemark
       ? `<span style="display:inline-block;padding:4px 12px;background:rgba(0,184,180,0.1);border:1px solid rgba(0,184,180,0.25);border-radius:8px;color:var(--teal);font-size:12px;font-weight:500;white-space:nowrap;">${teacherRemark}</span>`
@@ -733,7 +733,7 @@ function renderTable(s, assessments) {
   const upcoming = Array.from({ length: total - done }, () => `<tr class="upcoming"></tr>`);
   document.getElementById('asmnt-body').innerHTML = [...rows, ...upcoming].join('');
 
-  /* ✅ Header "Class Avg" ko "Percentage" me badlo (HTML chhune ki zaroorat nahi) */
+  /* ✅ Rename the "Class Avg" header to "Percentage" (no need to touch the HTML) */
   const _body = document.getElementById('asmnt-body');
   const _tbl = _body && _body.closest('table');
   if (_tbl) {
@@ -745,11 +745,11 @@ function renderTable(s, assessments) {
 
 /* ════════════════════════════════════════════════
    ✅ openPayment — classType parameter accept
-   (Payment band hai to kuch nahi hoga — sirf toast.)
+   (Payments are off, so nothing happens — just a toast.)
 ════════════════════════════════════════════════ */
 function openPayment(subjectId, classType = 'group') {
-  /* ✅ Payment abhi band hai — koi payment screen open nahi hogi.
-     Chalu karne ke liye upar PAYMENTS_ENABLED = true kar dena. */
+  /* ✅ Payments are currently off — no payment screen will open.
+     To enable, set PAYMENTS_ENABLED = true above. */
   if (!PAYMENTS_ENABLED) { toast('Payments are currently disabled.'); return; }
 
   const s = SUBJECTS.find(x => x.id === subjectId);
@@ -801,10 +801,10 @@ function selectMethod(m) {
 
 /* ════════════════════════════════════════════════
    ✅ submitPayment — class_type save (per-subject)
-   (Payment band hai to kuch submit nahi hoga.)
+   (Payments are off, so nothing will be submitted.)
 ════════════════════════════════════════════════ */
 async function submitPayment() {
-  /* ✅ Payment abhi band hai */
+  /* ✅ Payments are currently off */
   if (!PAYMENTS_ENABLED) { toast('Payments are currently disabled.'); return; }
 
   if (!CUR_SUBJ || !CUR_METHOD) return;
@@ -876,8 +876,8 @@ function goBack() { showScreen('s-dash'); }
    ASSIGNMENTS SECTION
 ════════════════════════════════════════════════ */
 let CURR_ASSIGN_ID = null, CURR_ASSIGN_DATA = null;
-let _currentBlobUrl = null;  // ✅ purana blob saaf karne ke liye
-let _blobUrls = {};          // ✅ har viewer container ka blob alag
+let _currentBlobUrl = null;  // ✅ to clean up the previous blob
+let _blobUrls = {};          // ✅ a separate blob for each viewer container
 
 (function applyProtections() {
   document.addEventListener('contextmenu', function (e) {
@@ -891,8 +891,8 @@ let _blobUrls = {};          // ✅ har viewer container ka blob alag
     if (key === 'printscreen' || key === 'f12') { e.preventDefault(); return false; }
   });
 
-  /* ✅ Screenshot deterrent: jab tab/window se focus hate (snipping tool, alt-tab),
-     modal content blur kar do; wapas aane par clear. */
+  /* ✅ Screenshot deterrent: when the tab/window loses focus (snipping tool, alt-tab),
+     blur the modal content; clear it when focus returns. */
   function _blurGuard() {
     const m = document.getElementById('view-modal');
     if (!m || m.style.display !== 'flex') return;
@@ -919,7 +919,7 @@ async function loadAssignments(subjectId) {
     const { data: assignsRaw, error } = await sb.from('assignments').select('*')
       .eq('subject_id', subjectId).eq('status', 'published').order('due_date');
     if (error) throw error;
-    /* ✅ Sirf student ki grade+board ke assignments dikhao */
+    /* ✅ Only show assignments for the student's grade+board */
     const sg = (PROFILE.class || ''), sbd = (PROFILE.board || '');
     const assigns = (assignsRaw || []).filter(a => assignmentInScope(a, sg, sbd));
     if (!assigns || assigns.length === 0) {
@@ -990,7 +990,7 @@ async function viewAssignment(assignId) {
   const wText = wName + (wRoll ? '  |  ' + wRoll : '');
   let contentHTML = '';
   if (a.file_url) {
-    /* ✅ Pehle placeholder dikhao; PDF blob ki tarah baad me load hoga (download na ho isliye) */
+    /* ✅ Show a placeholder first; the PDF loads later as a blob (to prevent downloads) */
     const wmRow = Array(30).fill('<span style="font-size:12px;font-weight:700;color:#fff;white-space:nowrap;letter-spacing:1px;padding:0 20px;">' + wText + '</span>').join('');
     contentHTML = '<div style="position:relative;border-radius:10px;overflow:hidden;background:#1a1a2e;">'
       + '<div style="position:absolute;inset:0;z-index:20;pointer-events:none;">'
@@ -1022,7 +1022,7 @@ async function viewAssignment(assignId) {
     : overdue
       ? '<div style="padding:14px;background:rgba(252,129,129,0.1);border:1px solid rgba(252,129,129,0.3);border-radius:10px;color:#fc8181;font-weight:600;">Deadline passed — Submission closed</div>'
       : '<div style="text-align:right;"><button onclick="closeViewModal();openSubmitModal(\'' + a.id + '\',\'' + (a.title || '').replace(/'/g, "\\'") + '\');" style="padding:11px 28px;background:var(--gold);color:#111;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Submit Assignment →</button></div>';
-  /* ✅ Teacher ne checked worksheet upload ki ho to dikhao */
+  /* ✅ If the teacher uploaded a checked worksheet, show it */
   const checkedBlock = (sub && sub.checked_file_url)
     ? '<div style="margin-top:18px;">'
       + '<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--gold);font-weight:700;margin-bottom:8px;">📄 Checked Worksheet (by Teacher)</div>'
@@ -1042,7 +1042,7 @@ async function viewAssignment(assignId) {
     + '<div style="margin-top:18px;">' + footerHTML + '</div>'
     + checkedBlock;
 
-  /* ✅ Modal thoda chauda kar do */
+  /* ✅ Make the modal a bit wider */
   const _vm = document.getElementById('view-modal');
   let _card = document.getElementById('view-modal-body');
   while (_card && _card.parentElement && _card.parentElement.id !== 'view-modal') _card = _card.parentElement;
@@ -1050,22 +1050,22 @@ async function viewAssignment(assignId) {
 
   document.getElementById('view-modal').style.display = 'flex';
 
-  /* ✅ Worksheet aur (agar ho) checked worksheet — dono blob ki tarah dikhao */
+  /* ✅ Show both the worksheet and (if any) the checked worksheet as blobs */
   if (a.file_url) loadPdfBlob(a.file_url, 'pdf-frame-container');
   if (sub && sub.checked_file_url) loadPdfBlob(sub.checked_file_url, 'checked-frame-container');
 }
 
 /* ════════════════════════════════════════════════
-   ✅ NEW: PDF ko blob ke through dikhao (download fix)
+   ✅ NEW: Show the PDF via a blob (download fix)
 ════════════════════════════════════════════════ */
 async function loadPdfBlob(url, containerId = 'pdf-frame-container') {
   const container = document.getElementById(containerId);
   if (!container) return;
 
-  /* purana blob memory se hatao (har container ka apna) */
+  /* free the previous blob from memory (each container has its own) */
   if (_blobUrls[containerId]) { try { URL.revokeObjectURL(_blobUrls[containerId]); } catch (e) {} _blobUrls[containerId] = null; }
 
-  /* file ka extension nikalo (query/hash hata ke) */
+  /* Get the file extension (stripping query/hash) */
   const cleanUrl = url.split('#')[0].split('?')[0].toLowerCase();
   const ext = (cleanUrl.split('.').pop() || '').trim();
 
@@ -1075,7 +1075,7 @@ async function loadPdfBlob(url, containerId = 'pdf-frame-container') {
 
   container.style.display = 'block';
 
-  /* ── WORD / PPT / EXCEL → Microsoft ka official viewer ── */
+  /* ── WORD / PPT / EXCEL → Microsoft's official viewer ── */
   if (isOffice) {
     const officeSrc = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(url);
     container.innerHTML =
@@ -1084,7 +1084,7 @@ async function loadPdfBlob(url, containerId = 'pdf-frame-container') {
     return;
   }
 
-  /* ── PDF aur IMAGE ke liye file ko blob ki tarah laao ── */
+  /* ── For PDF and IMAGE, fetch the file as a blob ── */
   try {
     const resp = await fetch(url, { cache: 'no-store' });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
@@ -1102,7 +1102,7 @@ async function loadPdfBlob(url, containerId = 'pdf-frame-container') {
       return;
     }
 
-    /* PDF (ya jab type pata na ho lekin extension .pdf ho) */
+    /* PDF (or when the type is unknown but the extension is .pdf) */
     if (isPdf || ctype.includes('pdf')) {
       const pdfBlob = (raw.type === 'application/pdf') ? raw : new Blob([raw], { type: 'application/pdf' });
       const blobUrl = URL.createObjectURL(pdfBlob);
@@ -1113,7 +1113,7 @@ async function loadPdfBlob(url, containerId = 'pdf-frame-container') {
       return;
     }
 
-    /* koi aur type — inline preview possible nahi */
+    /* any other type — inline preview not possible */
     container.style.display = 'flex';
     container.innerHTML =
       '<div style="padding:30px;text-align:center;color:#cbd5e1;font-size:13px;line-height:1.7;">'
@@ -1132,7 +1132,7 @@ async function loadPdfBlob(url, containerId = 'pdf-frame-container') {
 
 function closeViewModal() {
   document.getElementById('view-modal').style.display = 'none';
-  /* sabhi viewer blobs memory se hatao */
+  /* free all viewer blobs from memory */
   if (_currentBlobUrl) { try { URL.revokeObjectURL(_currentBlobUrl); } catch (e) {} _currentBlobUrl = null; }
   Object.keys(_blobUrls).forEach(k => { try { URL.revokeObjectURL(_blobUrls[k]); } catch (e) {} });
   _blobUrls = {};

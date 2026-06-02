@@ -740,7 +740,7 @@ function renderPublishedList() {
       <div style="width:36px;height:36px;background:var(--teal-dim);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;">📝</div>
       <div style="flex:1;min-width:0;">
         <div style="font-size:14px;font-weight:600;color:var(--cream);margin-bottom:4px;">${a.title}</div>
-        <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">${a.type} Max: ${a.max_score} marks · ${dueStr}</div>
+        <div style="font-size:12px;color:var(--muted);margin-bottom:4px;">${a.type} · Max: ${a.max_score} marks · ${dueStr}</div>
         ${a.instructions ? `<div style="font-size:11.5px;color:var(--muted);line-height:1.5;">${a.instructions}</div>` : ''}
         ${a.file_url ? `<div style="margin-top:6px;font-size:12px;color:var(--teal);">📎 ${a.file_name || 'File attached'}</div>` : '<div style="margin-top:4px;font-size:11.5px;color:var(--muted);">No file attached</div>'}
       </div>
@@ -1031,7 +1031,7 @@ function populateAssignSels() {
 function updAMeta(a, p) {
   if (!a) return;
   setTxt(p + '-asgn-title', a.title || '—');
-  setTxt(p + '-asgn-meta', `Due: ${fmtDate(a.due_date)}  /  Max score: ${a.max_score}`);
+  setTxt(p + '-asgn-meta', `Due: ${fmtDate(a.due_date)} / Max score: ${a.max_score}`);
 }
 
 function onSubsAssignChange(id) {
@@ -1051,7 +1051,7 @@ async function loadSubmissions(aid) {
     const {
       data: subs
     } = await sb.from('assignment_submissions')
-      .select('id, student_id, submitted_at, file_url, file_name, file_size, status, teacher_remarks, profiles:student_id(id, full_name, username, roll_number, class, board)')
+      .select('id, student_id, submitted_at, file_url, file_name, file_size, status, teacher_remarks, checked_file_url, checked_file_name, profiles:student_id(id, full_name, username, roll_number, class, board)')
       .eq('assignment_id', aid);
     (subs || []).forEach(s => {
       const pr = s.profiles || {};
@@ -1061,7 +1061,9 @@ async function loadSubmissions(aid) {
         _username: pr.username || null,
         _roll: pr.roll_number || null,
         _class: pr.class || null,
-        teacher_remarks: s.teacher_remarks || ''
+        teacher_remarks: s.teacher_remarks || '',
+        checked_file_url: s.checked_file_url || '',
+        checked_file_name: s.checked_file_name || ''
       };
     });
     const missingSubIds = Object.keys(sm).filter(sid => !sm[sid]._name);
@@ -1120,21 +1122,27 @@ function renderSubList(sm) {
         url: sub.file_url,
         fname: sub.file_name || '',
         remark: sub.teacher_remarks || '',
-        subId: sub.id || ''
+        subId: sub.id || '',
+        checkedUrl: sub.checked_file_url || '',
+        checkedName: sub.checked_file_name || ''
       };
       const subDataStr = btoa(unescape(encodeURIComponent(JSON.stringify(subData))));
       const viewBtn = sub.file_url ?
         '<button onclick="openSubReview(atob(\'' + subDataStr + '\'))" class="sub-view" style="cursor:pointer;">✏️ Review & Comment</button>' :
         '<span style="font-size:12px;color:var(--muted);">No file</span>';
+      const dlBtn = sub.file_url ?
+        '<button onclick="downloadSubmission(atob(\'' + subDataStr + '\'))" style="cursor:pointer;margin-top:6px;display:inline-block;padding:5px 12px;background:transparent;color:var(--blue);border:1px solid var(--blue);border-radius:6px;font-size:11.5px;font-weight:600;">⬇ Download</button>' :
+        '';
       html += '<div class="sub-row" style="border-left:3px solid var(--green);padding-left:14px;align-items:flex-start;">' +
         '<div class="s-av" style="background:' + av + ';margin-top:4px;">' + iv + '</div>' +
         '<div style="flex:1;min-width:0;"><div class="sub-name">' + name + '</div>' +
         (username ? '<div style="font-size:11.5px;color:var(--teal);margin-top:1px;">' + username + '</div>' : '') +
-                (fname ? '<div style="font-size:11px;color:var(--muted);margin-top:5px;">📎 ' + fname + (fsize ? ' (' + fsize + ')' : '') + '</div>' : '') +
+        
+        (fname ? '<div style="font-size:11px;color:var(--muted);margin-top:5px;">📎 ' + fname + (fsize ? ' (' + fsize + ')' : '') + '</div>' : '') +
         '</div><div style="text-align:right;flex-shrink:0;min-width:140px;">' +
         '<div style="font-size:11px;color:var(--green);font-weight:700;margin-bottom:3px;">✓ Submitted</div>' +
         '<div style="font-size:11px;color:var(--muted);margin-bottom:8px;">' + fmtDate(sub.submitted_at) + '</div>' +
-        viewBtn + '</div></div>';
+        viewBtn + (dlBtn ? '<br>' + dlBtn : '') + '</div></div>';
     });
   }
   if (_subFilter === 'all' || _subFilter === 'not submitted') {
@@ -1149,7 +1157,7 @@ function renderSubList(sm) {
         '<div class="s-av" style="background:' + av + ';margin-top:4px;">' + iv + '</div>' +
         '<div style="flex:1;"><div class="sub-name">' + name + '</div>' +
         (username ? '<div style="font-size:11.5px;color:var(--muted);margin-top:1px;">' + username + '</div>' : '') +
-        '<div class="sub-roll"><strong style="color:var(--cream);">' + roll + '</strong>' + cls + '</div>' +
+        '<div class="sub-roll">Roll No. <strong style="color:var(--cream);">' + roll + '</strong>' + cls + '</div>' +
         '</div><div class="not-sub">✗ Not Submitted</div></div>';
     });
   }
@@ -1164,6 +1172,33 @@ function onMarkAssignChange(id) {
   SEL_ASSIGN = CUR_ASSIGNS.find(a => a.id === id) || SEL_ASSIGN;
   updAMeta(SEL_ASSIGN, 'm');
   renderMarkRows();
+}
+
+/* ✅ Student ki submitted worksheet download karo (cross-origin → blob ke through) */
+function downloadSubmission(jsonStr) {
+  let meta;
+  try { meta = JSON.parse(jsonStr); } catch (e) { return; }
+  if (!meta.url) { toast('No file to download.', 'err'); return; }
+  _downloadFile(meta.url, meta.fname || 'submission');
+}
+async function _downloadFile(url, filename) {
+  try {
+    toast('Downloading…', 'ok');
+    const resp = await fetch(url, { cache: 'no-store' });
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const blob = await resp.blob();
+    const objUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objUrl;
+    a.download = filename || 'submission';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => { try { URL.revokeObjectURL(objUrl); } catch (e) {} }, 4000);
+  } catch (e) {
+    /* fallback: naye tab me kholo */
+    window.open(url, '_blank');
+  }
 }
 
 async function renderMarkRows() {
@@ -1388,8 +1423,77 @@ function openSubReview(jsonStr) {
 
   modal.style.display = 'flex';
 
+  /* ✅ Checked-worksheet upload box (modal me JS se inject) */
+  mountCheckedUI(meta);
+
   /* ✅ File ko uske type ke hisaab se dikhao (PDF / Word / image / etc.) */
   renderSubmissionFile(meta.url, meta.fname);
+}
+
+/* ✅ Review modal me "Upload Checked Worksheet" box ek baar bana do, phir update karte raho */
+function mountCheckedUI(meta) {
+  const saveBtn = _('srv-save-btn');
+  if (!saveBtn) return;
+  let wrap = _('srv-checked-wrap');
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.id = 'srv-checked-wrap';
+    wrap.style.cssText = 'margin:14px 0;padding:14px 16px;border:1px dashed rgba(0,184,180,0.4);border-radius:10px;';
+    wrap.innerHTML =
+      '<div style="font-size:12px;font-weight:700;color:var(--teal);margin-bottom:8px;">📤 Upload Checked Worksheet (student will see this)</div>'
+      + '<div id="srv-checked-status" style="font-size:12px;color:var(--muted);margin-bottom:10px;">No checked file uploaded yet.</div>'
+      + '<input type="file" id="srv-checked-file" style="font-size:12px;color:var(--cream);margin-bottom:10px;display:block;max-width:100%;">'
+      + '<button id="srv-checked-btn" onclick="uploadCheckedWorksheet()" style="padding:8px 18px;background:var(--teal);border:none;border-radius:8px;color:#fff;font-family:\'DM Sans\',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;">Upload Checked File →</button>';
+    saveBtn.parentNode.insertBefore(wrap, saveBtn);
+  }
+  /* reset + existing checked file dikhao */
+  const fileInp = _('srv-checked-file');
+  if (fileInp) fileInp.value = '';
+  setTxt('srv-checked-status', (meta.checkedUrl)
+    ? '✓ Checked file uploaded: ' + (meta.checkedName || 'file')
+    : 'No checked file uploaded yet.');
+}
+
+/* ✅ Checked worksheet upload → assignment_submissions me save → student ko dikhega */
+async function uploadCheckedWorksheet() {
+  const fileInp = _('srv-checked-file');
+  const btn = _('srv-checked-btn');
+  const subId = _('srv-save-btn').dataset.subId;
+  const sid = _('srv-save-btn')._metaSid;
+  const aid = _('srv-save-btn')._metaAid;
+  const file = fileInp && fileInp.files[0];
+  if (!file) { toast('Please choose a file first.', 'err'); return; }
+  if (!subId) { toast('Submission ID not found.', 'err'); return; }
+  if (!IS_LIVE) { toast('⚠ Supabase is not connected.', 'err'); return; }
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Uploading…';
+  try {
+    const safeFN = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+    const path = 'checked/' + (sid || 'student') + '/' + subId + '/' + Date.now() + '_' + safeFN;
+    const { error: ue } = await sb.storage.from('peak-submissions').upload(path, file, { upsert: true });
+    if (ue) throw ue;
+    const url = sb.storage.from('peak-submissions').getPublicUrl(path).data.publicUrl || '';
+    const { data: upd, error } = await sb.from('assignment_submissions')
+      .update({ checked_file_url: url, checked_file_name: file.name })
+      .eq('id', subId).select();
+    if (error) throw error;
+    if (!upd || upd.length === 0) {
+      toast('File saved but DB update blocked (RLS). Add an UPDATE policy on assignment_submissions.', 'err');
+      return;
+    }
+    /* cache update + status */
+    if (aid && CUR_SUBS[aid] && CUR_SUBS[aid][sid]) {
+      CUR_SUBS[aid][sid].checked_file_url = url;
+      CUR_SUBS[aid][sid].checked_file_name = file.name;
+    }
+    setTxt('srv-checked-status', '✓ Checked file uploaded: ' + file.name);
+    toast('✓ Checked worksheet uploaded! The student can see it now.', 'ok');
+  } catch (e) {
+    toast('Upload failed: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Upload Checked File →';
+  }
 }
 
 /* ════════════════════════════════════════════════

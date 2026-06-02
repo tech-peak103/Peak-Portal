@@ -99,7 +99,7 @@ function getClassTypeLabel(subject) {
 const DEMO = {
   profile: { id: '', username: '', full_name: '', class: '', board: '', roll_number: '' },
   notices: [
-    { type: 'urgent', title: 'Mid-term schedule released.', created_at: 'Today, 09:15 AM' },
+    { type: 'urgent', title: 'There is nothing right now', created_at: '-' },
   ],
   subjects: [],
   monthly: {},
@@ -877,6 +877,7 @@ function goBack() { showScreen('s-dash'); }
 ════════════════════════════════════════════════ */
 let CURR_ASSIGN_ID = null, CURR_ASSIGN_DATA = null;
 let _currentBlobUrl = null;  // ✅ purana blob saaf karne ke liye
+let _blobUrls = {};          // ✅ har viewer container ka blob alag
 
 (function applyProtections() {
   document.addEventListener('contextmenu', function (e) {
@@ -889,6 +890,22 @@ let _currentBlobUrl = null;  // ✅ purana blob saaf karne ke liye
     if ((e.ctrlKey || e.metaKey) && ['s', 'p', 'c', 'a', 'u'].includes(key)) { e.preventDefault(); return false; }
     if (key === 'printscreen' || key === 'f12') { e.preventDefault(); return false; }
   });
+
+  /* ✅ Screenshot deterrent: jab tab/window se focus hate (snipping tool, alt-tab),
+     modal content blur kar do; wapas aane par clear. */
+  function _blurGuard() {
+    const m = document.getElementById('view-modal');
+    if (!m || m.style.display !== 'flex') return;
+    const b = document.getElementById('view-modal-body');
+    if (b) b.style.filter = 'blur(22px)';
+  }
+  function _unblurGuard() {
+    const b = document.getElementById('view-modal-body');
+    if (b) b.style.filter = '';
+  }
+  document.addEventListener('visibilitychange', () => { document.hidden ? _blurGuard() : _unblurGuard(); });
+  window.addEventListener('blur', _blurGuard);
+  window.addEventListener('focus', _unblurGuard);
 })();
 
 async function loadAssignments(subjectId) {
@@ -1005,6 +1022,13 @@ async function viewAssignment(assignId) {
     : overdue
       ? '<div style="padding:14px;background:rgba(252,129,129,0.1);border:1px solid rgba(252,129,129,0.3);border-radius:10px;color:#fc8181;font-weight:600;">Deadline passed — Submission closed</div>'
       : '<div style="text-align:right;"><button onclick="closeViewModal();openSubmitModal(\'' + a.id + '\',\'' + (a.title || '').replace(/'/g, "\\'") + '\');" style="padding:11px 28px;background:var(--gold);color:#111;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Submit Assignment →</button></div>';
+  /* ✅ Teacher ne checked worksheet upload ki ho to dikhao */
+  const checkedBlock = (sub && sub.checked_file_url)
+    ? '<div style="margin-top:18px;">'
+      + '<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--gold);font-weight:700;margin-bottom:8px;">📄 Checked Worksheet (by Teacher)</div>'
+      + '<div id="checked-frame-container" style="width:100%;height:62vh;min-height:420px;display:flex;align-items:center;justify-content:center;background:#1a1a2e;border-radius:10px;color:#fff;font-size:13px;"><span class="spinner" style="margin-right:10px;"></span>Loading checked worksheet…</div>'
+      + '</div>'
+    : '';
   document.getElementById('view-modal-body').innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">'
     + '<div><div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;">' + (a.type || 'Assignment') + '</div>'
@@ -1015,22 +1039,31 @@ async function viewAssignment(assignId) {
     + duePill + '<span style="background:rgba(255,255,255,0.07);color:var(--cream);padding:4px 12px;border-radius:20px;font-size:12px;">Max: ' + a.max_score + ' marks</span>'
     + '</div>'
     + contentHTML
-    + '<div style="margin-top:18px;">' + footerHTML + '</div>';
+    + '<div style="margin-top:18px;">' + footerHTML + '</div>'
+    + checkedBlock;
+
+  /* ✅ Modal thoda chauda kar do */
+  const _vm = document.getElementById('view-modal');
+  let _card = document.getElementById('view-modal-body');
+  while (_card && _card.parentElement && _card.parentElement.id !== 'view-modal') _card = _card.parentElement;
+  if (_card) { _card.style.maxWidth = '1150px'; _card.style.width = '94vw'; }
+
   document.getElementById('view-modal').style.display = 'flex';
 
-  /* ✅ Ab PDF ko blob ki tarah fetch karke iframe me dikhao */
-  if (a.file_url) loadPdfBlob(a.file_url);
+  /* ✅ Worksheet aur (agar ho) checked worksheet — dono blob ki tarah dikhao */
+  if (a.file_url) loadPdfBlob(a.file_url, 'pdf-frame-container');
+  if (sub && sub.checked_file_url) loadPdfBlob(sub.checked_file_url, 'checked-frame-container');
 }
 
 /* ════════════════════════════════════════════════
    ✅ NEW: PDF ko blob ke through dikhao (download fix)
 ════════════════════════════════════════════════ */
-async function loadPdfBlob(url) {
-  const container = document.getElementById('pdf-frame-container');
+async function loadPdfBlob(url, containerId = 'pdf-frame-container') {
+  const container = document.getElementById(containerId);
   if (!container) return;
 
-  /* purana blob memory se hatao */
-  if (_currentBlobUrl) { try { URL.revokeObjectURL(_currentBlobUrl); } catch (e) {} _currentBlobUrl = null; }
+  /* purana blob memory se hatao (har container ka apna) */
+  if (_blobUrls[containerId]) { try { URL.revokeObjectURL(_blobUrls[containerId]); } catch (e) {} _blobUrls[containerId] = null; }
 
   /* file ka extension nikalo (query/hash hata ke) */
   const cleanUrl = url.split('#')[0].split('?')[0].toLowerCase();
@@ -1061,7 +1094,7 @@ async function loadPdfBlob(url) {
     /* IMAGE */
     if (isImage || ctype.startsWith('image/')) {
       const blobUrl = URL.createObjectURL(raw);
-      _currentBlobUrl = blobUrl;
+      _blobUrls[containerId] = blobUrl;
       container.innerHTML =
         '<div style="width:100%;height:72vh;min-height:500px;overflow:auto;display:flex;align-items:flex-start;justify-content:center;background:#0d0d18;padding:16px;box-sizing:border-box;">'
         + '<img src="' + blobUrl + '" style="max-width:100%;height:auto;border-radius:6px;" oncontextmenu="return false;" draggable="false" alt="Worksheet" />'
@@ -1073,7 +1106,7 @@ async function loadPdfBlob(url) {
     if (isPdf || ctype.includes('pdf')) {
       const pdfBlob = (raw.type === 'application/pdf') ? raw : new Blob([raw], { type: 'application/pdf' });
       const blobUrl = URL.createObjectURL(pdfBlob);
-      _currentBlobUrl = blobUrl;
+      _blobUrls[containerId] = blobUrl;
       container.innerHTML =
         '<iframe src="' + blobUrl + '#toolbar=0&navpanes=0&scrollbar=1&view=FitH" '
         + 'style="width:100%;height:72vh;min-height:500px;border:none;display:block;" title="Assignment Viewer"></iframe>';
@@ -1099,8 +1132,10 @@ async function loadPdfBlob(url) {
 
 function closeViewModal() {
   document.getElementById('view-modal').style.display = 'none';
-  /* blob memory se hatao */
+  /* sabhi viewer blobs memory se hatao */
   if (_currentBlobUrl) { try { URL.revokeObjectURL(_currentBlobUrl); } catch (e) {} _currentBlobUrl = null; }
+  Object.keys(_blobUrls).forEach(k => { try { URL.revokeObjectURL(_blobUrls[k]); } catch (e) {} });
+  _blobUrls = {};
   const c = document.getElementById('pdf-frame-container');
   if (c) c.innerHTML = '';
 }

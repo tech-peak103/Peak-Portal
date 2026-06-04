@@ -21,24 +21,35 @@ let _srvBlobUrl = null;
 ════════════════════════════════════════════════ */
 function parseFees(fees) {
   if (!fees) return [];
-  if (typeof fees === 'string') { try { fees = JSON.parse(fees); } catch { return []; } }
+  if (typeof fees === 'string') {
+    try {
+      fees = JSON.parse(fees);
+    } catch {
+      return [];
+    }
+  }
   return Array.isArray(fees) ? fees : [];
 }
+
 function _feeMatchOne(val, target) {
-  if (val == null || val === '') return true;               // empty = applies to everyone
+  if (val == null || val === '') return true; // empty = applies to everyone
   const list = String(val).split(',').map(x => x.trim().toLowerCase());
-  if (list.includes('all')) return true;                    // "All" = applies to everyone
+  if (list.includes('all')) return true; // "All" = applies to everyone
   return list.includes((target || '').toString().trim().toLowerCase());
 }
+
 function feeMatches(entry, grade, board) {
   return _feeMatchOne(entry.grade, grade) && _feeMatchOne(entry.board, board);
 }
+
 function feeNum(entry, classType) {
   if (!entry) return 0;
-  const keys = classType === 'individual'
-    ? ['individual_fee', 'individual-fee', 'individualFee', 'fee_individual', 'individual']
-    : ['group_fee', 'group-fee', 'groupFee', 'fee_group', 'group'];
-  for (const k of keys) { if (entry[k] != null) return Number(entry[k]) || 0; }
+  const keys = classType === 'individual' ?
+    ['individual_fee', 'individual-fee', 'individualFee', 'fee_individual', 'individual'] :
+    ['group_fee', 'group-fee', 'groupFee', 'fee_group', 'group'];
+  for (const k of keys) {
+    if (entry[k] != null) return Number(entry[k]) || 0;
+  }
   return 0;
 }
 /* Fee based on grade+board+classType. If no grade/board is given, use the first entry. */
@@ -71,7 +82,13 @@ function subjectFirstBoard(subject) {
 ════════════════════════════════════════════════ */
 function parseProfileSubjects(subs) {
   if (!subs) return [];
-  if (typeof subs === 'string') { try { subs = JSON.parse(subs); } catch { subs = subs.split(',').map(x => x.trim()); } }
+  if (typeof subs === 'string') {
+    try {
+      subs = JSON.parse(subs);
+    } catch {
+      subs = subs.split(',').map(x => x.trim());
+    }
+  }
   if (!Array.isArray(subs)) return [];
   return subs.map(item => {
     if (item && typeof item === 'object') {
@@ -80,7 +97,10 @@ function parseProfileSubjects(subs) {
         type: String(item.type || item.class_type || '').trim().toLowerCase()
       };
     }
-    return { name: String(item).trim(), type: '' };
+    return {
+      name: String(item).trim(),
+      type: ''
+    };
   }).filter(x => x.name);
 }
 /* Did the profile take this subject? If yes, return its entry (for the type) */
@@ -90,17 +110,21 @@ function profileSubjectEntry(profileSubjects, subject) {
   const sc = (subject.code || '').trim().toLowerCase();
   return list.find(x => {
     const n = x.name.toLowerCase();
+    onMarkAssignChange
     return n === sn || (sc && n === sc);
+
   }) || null;
 }
+
 function normClassType(raw) {
   return /ind|1|one/.test(String(raw || '').toLowerCase()) ? 'individual' : 'group';
 }
 /* Is this assignment for this grade+board? (empty grade/board = applies to everyone) */
 function assignmentInScope(a, grade, board) {
-  const ag = a.grade, ab = a.board;
+  const ag = a.grade,
+    ab = a.board;
   const noScope = (ag == null || ag === '') && (ab == null || ab === '');
-  if (noScope) return true;                       // old assignments = apply to everyone
+  if (noScope) return true; // old assignments = apply to everyone
   return _feeMatchOne(ag, grade) && _feeMatchOne(ab, board);
 }
 /* ✅ Converts raw score to a % using max_score, then computes the average */
@@ -296,7 +320,9 @@ async function loadDashboard() {
   ════════════════════════════════════════════════ */
 
   /* Fetch all student profiles once */
-  const { data: allProfiles } = await sb
+  const {
+    data: allProfiles
+  } = await sb
     .from('profiles')
     .select('id, full_name, username, roll_number, class, board, subjects, preferred_class_type');
 
@@ -307,14 +333,22 @@ async function loadDashboard() {
       const entry = profileSubjectEntry(p.subjects, s);
       if (!entry) return null;
       const ct = normClassType(entry.type || p.preferred_class_type || 'group');
-      return { ...p, _class_type: ct };
+      return {
+        ...p,
+        _class_type: ct
+      };
     }).filter(Boolean);
 
     /* Subject-level data (scores / assignments / payments) */
-    const [
-      { data: scores },
-      { data: pubAssigns },
-      { data: payRecs }
+    const [{
+        data: scores
+      },
+      {
+        data: pubAssigns
+      },
+      {
+        data: payRecs
+      }
     ] = await Promise.all([
       sb.from('assessments').select('student_id, student_score, name').eq('subject_id', s.id),
       sb.from('assignments').select('title, max_score, grade, board').eq('subject_id', s.id).eq('status', 'published'),
@@ -322,11 +356,17 @@ async function loadDashboard() {
     ]);
 
     const maxMap = {};
-    (pubAssigns || []).forEach(a => { maxMap[(a.title || '').trim()] = Number(a.max_score) || 0; });
+    (pubAssigns || []).forEach(a => {
+      maxMap[(a.title || '').trim()] = Number(a.max_score) || 0;
+    });
 
     /* fee combos. If there are no fees, just one card (all enrolled students) */
     const fees = parseFees(s.fees);
-    const combos = fees.length ? fees : [{ grade: null, board: null, _all: true }];
+    const combos = fees.length ? fees : [{
+      grade: null,
+      board: null,
+      _all: true
+    }];
 
     combos.forEach(combo => {
       /* is combo (grade+board) ke students */
@@ -357,13 +397,13 @@ async function loadDashboard() {
       const avg = avgPercent(comboScores, maxMap) || 0;
 
       /* Count of published assignments for this combo (grade+board) */
-      const aCount = combo._all
-        ? (pubAssigns || []).length
-        : (pubAssigns || []).filter(a => assignmentInScope(a, combo.grade, combo.board)).length;
+      const aCount = combo._all ?
+        (pubAssigns || []).length :
+        (pubAssigns || []).filter(a => assignmentInScope(a, combo.grade, combo.board)).length;
 
-      const scopeLabel = combo._all
-        ? subjectScopeLabel(s)
-        : ((combo.board || 'All') + ' ' + (combo.grade || 'All')).trim();
+      const scopeLabel = combo._all ?
+        subjectScopeLabel(s) :
+        ((combo.board || 'All') + ' ' + (combo.grade || 'All')).trim();
 
       cards.push({
         ...s,
@@ -379,7 +419,7 @@ async function loadDashboard() {
         _expected: expectedTotal,
         _avg: avg,
         _asgn: aCount || 0,
-        _students: inCombo   /* ✅ is card ke actual student profiles */
+        _students: inCombo /* ✅ is card ke actual student profiles */
       });
     });
   }
@@ -403,7 +443,12 @@ function updateStats(list) {
   const totA = (() => {
     const seen = new Set();
     let n = 0;
-    list.forEach(s => { if (!seen.has(s.id)) { seen.add(s.id); n += (s._asgn || 0); } });
+    list.forEach(s => {
+      if (!seen.has(s.id)) {
+        seen.add(s.id);
+        n += (s._asgn || 0);
+      }
+    });
     return n;
   })();
   const avgs = list.filter(s => s._avg > 0).map(s => s._avg);
@@ -546,15 +591,19 @@ async function openSubject(id) {
     class: p.class || null,
     board: p.board || null,
     _class_type: p._class_type || 'group',
-    _is_active: true,      /* payments off → active */
+    _is_active: true,
+    /* payments off → active */
     _pay: 'active',
     _avg: null
   }));
 
   /* Which grade+board this card is for (used to filter submission students) */
   const _comboFilter = (cls, brd) => {
-    if (CURR._grade == null && CURR._board == null) return true;   // "all" card
-    return feeMatches({ grade: CURR._grade, board: CURR._board }, cls, brd);
+    if (CURR._grade == null && CURR._board == null) return true; // "all" card
+    return feeMatches({
+      grade: CURR._grade,
+      board: CURR._board
+    }, cls, brd);
   };
 
   /* Step 3: Submissions ke through bhi students */
@@ -617,7 +666,9 @@ async function openSubject(id) {
   /* Step 5: Avg scores */
   /* ✅ assignment title -> max_score map (CUR_ASSIGNS are already loaded) */
   const maxMap = {};
-  CUR_ASSIGNS.forEach(a => { maxMap[(a.title || '').trim()] = Number(a.max_score) || 0; });
+  CUR_ASSIGNS.forEach(a => {
+    maxMap[(a.title || '').trim()] = Number(a.max_score) || 0;
+  });
 
   CUR_STUDENTS = await Promise.all(rawStudents.map(async s => {
     if (!s.id) return s;
@@ -625,7 +676,10 @@ async function openSubject(id) {
       data: sc
     } = await sb.from('assessments')
       .select('student_score, name').eq('student_id', s.id).eq('subject_id', CURR.id);
-    return { ...s, _avg: avgPercent(sc, maxMap) }; // ✅ as a %, not raw
+    return {
+      ...s,
+      _avg: avgPercent(sc, maxMap)
+    }; // ✅ as a %, not raw
   }));
 
   console.log('[openSubject] Total students loaded:', CUR_STUDENTS.length);
@@ -707,7 +761,7 @@ function renderStudentTable(filter = '') {
           </div>
         </div>
       </td>
-      <td style="color:var(--muted);font-size:13px"><strong style="color:var(--cream);">${s.roll_number || '—'}</strong></td>
+      
       <td>${sc != null ? `<div class="score-wrap"><span>${sc}%</span><div class="score-bar"><div class="score-fill ${bcc}" style="width:${sc}%"></div></div></div>` : '—'}</td>
       <td><span class="pay-badge ${pcls}">${ptag}</span></td>
     </tr>`;
@@ -716,6 +770,16 @@ function renderStudentTable(filter = '') {
 
 function filterStudents(v) {
   renderStudentTable(v);
+}
+function filterMarkStudents(v) {
+  const q = (v || '').toLowerCase().trim();
+  document.querySelectorAll('#mark-rows .mark-row').forEach(r => {
+    const stu = CUR_STUDENTS.find(s => s.id === r.dataset.sid);
+    const name  = (stu && stu.full_name ? stu.full_name : '').toLowerCase();
+    const uname = (stu && stu.username  ? stu.username  : '').toLowerCase();
+    const match = !q || name.includes(q) || uname.includes(q);
+    r.style.display = match ? '' : 'none';
+  });
 }
 
 function renderPublishedList() {
@@ -983,8 +1047,9 @@ async function publishAssignment() {
     file_url: fileUrl,
     file_name: fileName,
     status: 'published',
-    grade: CURR._grade || null,   /* ✅ for this grade only */
-    board: CURR._board || null    /* ✅ for this board only */
+    grade: CURR._grade || null,
+    /* ✅ for this grade only */
+    board: CURR._board || null /* ✅ for this board only */
   }).select().single();
   if (error) {
     toast('Error: ' + error.message, 'err');
@@ -1137,7 +1202,6 @@ function renderSubList(sm) {
         '<div class="s-av" style="background:' + av + ';margin-top:4px;">' + iv + '</div>' +
         '<div style="flex:1;min-width:0;"><div class="sub-name">' + name + '</div>' +
         (username ? '<div style="font-size:11.5px;color:var(--teal);margin-top:1px;">' + username + '</div>' : '') +
-        '<div class="sub-roll">Roll No. <strong style="color:var(--cream);">' + roll + '</strong>' + cls + '</div>' +
         (fname ? '<div style="font-size:11px;color:var(--muted);margin-top:5px;">📎 ' + fname + (fsize ? ' (' + fsize + ')' : '') + '</div>' : '') +
         '</div><div style="text-align:right;flex-shrink:0;min-width:140px;">' +
         '<div style="font-size:11px;color:var(--green);font-weight:700;margin-bottom:3px;">✓ Submitted</div>' +
@@ -1157,7 +1221,7 @@ function renderSubList(sm) {
         '<div class="s-av" style="background:' + av + ';margin-top:4px;">' + iv + '</div>' +
         '<div style="flex:1;"><div class="sub-name">' + name + '</div>' +
         (username ? '<div style="font-size:11.5px;color:var(--muted);margin-top:1px;">' + username + '</div>' : '') +
-        '<div class="sub-roll">Roll No. <strong style="color:var(--cream);">' + roll + '</strong>' + cls + '</div>' +
+
         '</div><div class="not-sub">✗ Not Submitted</div></div>';
     });
   }
@@ -1177,14 +1241,23 @@ function onMarkAssignChange(id) {
 /* ✅ Download the student's submitted worksheet (cross-origin → via a blob) */
 function downloadSubmission(jsonStr) {
   let meta;
-  try { meta = JSON.parse(jsonStr); } catch (e) { return; }
-  if (!meta.url) { toast('No file to download.', 'err'); return; }
+  try {
+    meta = JSON.parse(jsonStr);
+  } catch (e) {
+    return;
+  }
+  if (!meta.url) {
+    toast('No file to download.', 'err');
+    return;
+  }
   _downloadFile(meta.url, meta.fname || 'submission');
 }
 async function _downloadFile(url, filename) {
   try {
     toast('Downloading…', 'ok');
-    const resp = await fetch(url, { cache: 'no-store' });
+    const resp = await fetch(url, {
+      cache: 'no-store'
+    });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const blob = await resp.blob();
     const objUrl = URL.createObjectURL(blob);
@@ -1194,7 +1267,11 @@ async function _downloadFile(url, filename) {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    setTimeout(() => { try { URL.revokeObjectURL(objUrl); } catch (e) {} }, 4000);
+    setTimeout(() => {
+      try {
+        URL.revokeObjectURL(objUrl);
+      } catch (e) {}
+    }, 4000);
   } catch (e) {
     /* fallback: open in a new tab */
     window.open(url, '_blank');
@@ -1253,7 +1330,7 @@ async function renderMarkRows() {
         <div class="s-av" style="background:${av};width:28px;height:28px;font-size:11px">${iv}</div>
         <div>
           <div style="font-size:13.5px;font-weight:500">${s.full_name || '—'}</div>
-          <div style="font-size:11.5px;color:var(--muted)">${s.roll_number || ''}${s.username ? ' · @' + s.username : ''}</div>
+          <div style="font-size:11.5px;color:var(--muted)">${s.username ? '@' + s.username : ''}</div>
         </div>
       </div>
       <input class="m-score _sc" type="number" min="0"
@@ -1350,10 +1427,16 @@ function renderNoticeList(notices) {
 async function deleteNotice(id) {
   if (!id) return;
   if (!confirm('Delete this notice? It will also be removed from student dashboards.')) return;
-  if (!IS_LIVE) { toast('⚠ Supabase is not connected.', 'err'); return; }
+  if (!IS_LIVE) {
+    toast('⚠ Supabase is not connected.', 'err');
+    return;
+  }
   try {
     /* used .select() so we know how many rows were actually deleted */
-    const { data, error } = await sb.from('notices').delete().eq('id', id).select();
+    const {
+      data,
+      error
+    } = await sb.from('notices').delete().eq('id', id).select();
     if (error) throw error;
     if (!data || data.length === 0) {
       /* RLS blocked it — no rows were deleted */
@@ -1441,15 +1524,16 @@ function mountCheckedUI(meta) {
     wrap.id = 'srv-checked-wrap';
     wrap.style.cssText = 'margin:14px 0;padding:14px 16px;border:1px dashed rgba(0,184,180,0.4);border-radius:10px;position:relative;z-index:5;';
     wrap.innerHTML =
-      '<div style="font-size:12px;font-weight:700;color:var(--teal);margin-bottom:8px;">📤 Upload Checked Worksheet (student will see this)</div>'
-      + '<div id="srv-checked-status" style="font-size:12px;color:var(--muted);margin-bottom:10px;">No checked file uploaded yet.</div>'
+      '<div style="font-size:12px;font-weight:700;color:var(--teal);margin-bottom:8px;">📤 Upload Checked Worksheet (student will see this)</div>' +
+      '<div id="srv-checked-status" style="font-size:12px;color:var(--muted);margin-bottom:10px;">No checked file uploaded yet.</div>'
       /* hidden real input — sirf JS se trigger hoga */
-      + '<input type="file" id="srv-checked-file" style="display:none;">'
-      + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">'
-      + '  <button type="button" id="srv-choose-btn" style="padding:8px 16px;background:rgba(0,184,180,0.12);border:1px solid var(--teal);border-radius:8px;color:var(--teal);font-family:\'DM Sans\',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;">📁 Choose File</button>'
-      + '  <span id="srv-chosen-name" style="font-size:12px;color:var(--muted);">No file chosen</span>'
-      + '</div>'
-      + '<button type="button" id="srv-checked-btn" style="padding:8px 18px;background:var(--teal);border:none;border-radius:8px;color:#fff;font-family:\'DM Sans\',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;">Upload Checked File →</button>';
+      +
+      '<input type="file" id="srv-checked-file" style="display:none;">' +
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">' +
+      '  <button type="button" id="srv-choose-btn" style="padding:8px 16px;background:rgba(0,184,180,0.12);border:1px solid var(--teal);border-radius:8px;color:var(--teal);font-family:\'DM Sans\',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;">📁 Choose File</button>' +
+      '  <span id="srv-chosen-name" style="font-size:12px;color:var(--muted);">No file chosen</span>' +
+      '</div>' +
+      '<button type="button" id="srv-checked-btn" style="padding:8px 18px;background:var(--teal);border:none;border-radius:8px;color:#fff;font-family:\'DM Sans\',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;">Upload Checked File →</button>';
     saveBtn.parentNode.insertBefore(wrap, saveBtn);
 
     /* ✅ Choose File button → hidden input ko click karao */
@@ -1477,9 +1561,9 @@ function mountCheckedUI(meta) {
   const fileInp = _('srv-checked-file');
   if (fileInp) fileInp.value = '';
   setTxt('srv-chosen-name', 'No file chosen');
-  setTxt('srv-checked-status', (meta.checkedUrl)
-    ? '✓ Checked file uploaded: ' + (meta.checkedName || 'file')
-    : 'No checked file uploaded yet.');
+  setTxt('srv-checked-status', (meta.checkedUrl) ?
+    '✓ Checked file uploaded: ' + (meta.checkedName || 'file') :
+    'No checked file uploaded yet.');
 }
 
 /* ✅ Checked worksheet upload → save in assignment_submissions → visible to the student */
@@ -1490,19 +1574,38 @@ async function uploadCheckedWorksheet() {
   const sid = _('srv-save-btn')._metaSid;
   const aid = _('srv-save-btn')._metaAid;
   const file = fileInp && fileInp.files[0];
-  if (!file) { toast('Please choose a file first.', 'err'); return; }
-  if (!subId) { toast('Submission ID not found.', 'err'); return; }
-  if (!IS_LIVE) { toast('⚠ Supabase is not connected.', 'err'); return; }
+  if (!file) {
+    toast('Please choose a file first.', 'err');
+    return;
+  }
+  if (!subId) {
+    toast('Submission ID not found.', 'err');
+    return;
+  }
+  if (!IS_LIVE) {
+    toast('⚠ Supabase is not connected.', 'err');
+    return;
+  }
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Uploading…';
   try {
     const safeFN = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
     const path = 'checked/' + (sid || 'student') + '/' + subId + '/' + Date.now() + '_' + safeFN;
-    const { error: ue } = await sb.storage.from('peak-submissions').upload(path, file, { upsert: true });
+    const {
+      error: ue
+    } = await sb.storage.from('peak-submissions').upload(path, file, {
+      upsert: true
+    });
     if (ue) throw ue;
     const url = sb.storage.from('peak-submissions').getPublicUrl(path).data.publicUrl || '';
-    const { data: upd, error } = await sb.from('assignment_submissions')
-      .update({ checked_file_url: url, checked_file_name: file.name })
+    const {
+      data: upd,
+      error
+    } = await sb.from('assignment_submissions')
+      .update({
+        checked_file_url: url,
+        checked_file_name: file.name
+      })
       .eq('id', subId).select();
     if (error) throw error;
     if (!upd || upd.length === 0) {
@@ -1551,7 +1654,12 @@ async function renderSubmissionFile(url, fname) {
   if (!fileEl) return;
 
   /* pichla blob free karo */
-  if (_srvBlobUrl) { try { URL.revokeObjectURL(_srvBlobUrl); } catch (e) {} _srvBlobUrl = null; }
+  if (_srvBlobUrl) {
+    try {
+      URL.revokeObjectURL(_srvBlobUrl);
+    } catch (e) {}
+    _srvBlobUrl = null;
+  }
 
   if (!url) {
     fileEl.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;">No file attached.</div>';
@@ -1562,8 +1670,8 @@ async function renderSubmissionFile(url, fname) {
   const clean = name.split('#')[0].split('?')[0];
   const ext = (clean.split('.').pop() || '').trim();
 
-  const isImage  = /^(png|jpg|jpeg|gif|webp|bmp|svg)$/.test(ext);
-  const isPdf    = ext === 'pdf';
+  const isImage = /^(png|jpg|jpeg|gif|webp|bmp|svg)$/.test(ext);
+  const isPdf = ext === 'pdf';
   const isOffice = /^(doc|docx|ppt|pptx|xls|xlsx)$/.test(ext);
 
   fileEl.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;"><span class="spinner" style="margin-right:8px;"></span>Loading file…</div>';
@@ -1577,7 +1685,9 @@ async function renderSubmissionFile(url, fname) {
   }
 
   try {
-    const resp = await fetch(url, { cache: 'no-store' });
+    const resp = await fetch(url, {
+      cache: 'no-store'
+    });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const raw = await resp.blob();
     const ctype = (resp.headers.get('content-type') || raw.type || '').toLowerCase();
@@ -1595,7 +1705,9 @@ async function renderSubmissionFile(url, fname) {
     if (isPdf || ctype.includes('pdf')) {
       const pdfjsLib = await ensurePdfJs();
       const arrayBuffer = await raw.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const pdf = await pdfjsLib.getDocument({
+        data: arrayBuffer
+      }).promise;
 
       fileEl.innerHTML = '';
       const scroller = document.createElement('div');
@@ -1609,9 +1721,13 @@ async function renderSubmissionFile(url, fname) {
 
       for (let p = 1; p <= pdf.numPages; p++) {
         const page = await pdf.getPage(p);
-        const base = page.getViewport({ scale: 1 });
+        const base = page.getViewport({
+          scale: 1
+        });
         const cssScale = availW / base.width;
-        const vp = page.getViewport({ scale: cssScale * dpr });
+        const vp = page.getViewport({
+          scale: cssScale * dpr
+        });
 
         const canvas = document.createElement('canvas');
         canvas.width = vp.width;
@@ -1621,28 +1737,37 @@ async function renderSubmissionFile(url, fname) {
         canvas.oncontextmenu = () => false;
         scroller.appendChild(canvas);
 
-        await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+        await page.render({
+          canvasContext: canvas.getContext('2d'),
+          viewport: vp
+        }).promise;
       }
       return;
     }
 
     /* ── koi aur type ── */
     fileEl.innerHTML =
-      '<div style="padding:24px;text-align:center;color:#cbd5e1;font-size:13px;line-height:1.7;">'
-      + 'This file cannot be previewed here (' + (ext || 'unknown') + ').<br><br>'
-      + '<a href="' + url + '" target="_blank" rel="noopener" style="color:var(--teal);font-weight:600;">Open in new tab →</a></div>';
+      '<div style="padding:24px;text-align:center;color:#cbd5e1;font-size:13px;line-height:1.7;">' +
+      'This file cannot be previewed here (' + (ext || 'unknown') + ').<br><br>' +
+      '<a href="' + url + '" target="_blank" rel="noopener" style="color:var(--teal);font-weight:600;">Open in new tab →</a></div>';
   } catch (e) {
     fileEl.innerHTML =
-      '<div style="padding:24px;text-align:center;color:#e07070;font-size:13px;line-height:1.7;">'
-      + 'Could not load the file.<br>(' + e.message + ')<br><br>'
-      + '<a href="' + url + '" target="_blank" rel="noopener" style="color:var(--teal);font-weight:600;">Open in new tab →</a></div>';
+      '<div style="padding:24px;text-align:center;color:#e07070;font-size:13px;line-height:1.7;">' +
+      'Could not load the file.<br>(' + e.message + ')<br><br>' +
+      '<a href="' + url + '" target="_blank" rel="noopener" style="color:var(--teal);font-weight:600;">Open in new tab →</a></div>';
   }
 }
+
 function closeSubReview() {
   const modal = _('sub-review-modal');
   if (modal) modal.style.display = 'none';
   /* free the blob from memory */
-  if (_srvBlobUrl) { try { URL.revokeObjectURL(_srvBlobUrl); } catch (e) {} _srvBlobUrl = null; }
+  if (_srvBlobUrl) {
+    try {
+      URL.revokeObjectURL(_srvBlobUrl);
+    } catch (e) {}
+    _srvBlobUrl = null;
+  }
   const fileEl = _('srv-file-area');
   if (fileEl) fileEl.innerHTML = '';
 }

@@ -1,378 +1,503 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Peak Potentia — Student Portal</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Peak Potentia — Student Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link
+    href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=DM+Sans:wght@300;400;500;600&display=swap"
+    rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <link rel="stylesheet" href="style.css">
 
 </head>
-<body>
-<div id="toast"></div>
 
-<!-- ═══ LOGIN ═══ -->
-<div id="s-login" class="screen active">
-  <div class="login-wrap">
-    <div class="login-deco"></div>
-    <div class="login-ring" style="width:380px;height:380px;bottom:-150px;left:-130px;"></div>
-    <div class="login-ring" style="width:240px;height:240px;top:-70px;right:500px;"></div>
-    <div class="login-left">
-      <div>
-        <div class="ll-logo-wrap">
-          <div class="ll-logo-box"><img id="ll-logo" src="https://fr1ekw4xx.tribe.junction.express/uploads/2025/05-May/29-Thu/sm/header-icon_6838241632ce3.png" alt="Logo"></div>
-          <div><div class="ll-bname">Peak Potentia</div><div class="ll-btag">Excellence in Academics and Research</div></div>
+<body>
+  <div id="toast"></div>
+
+  <!-- ═══ LOGIN ═══ -->
+  <div id="s-login" class="screen active">
+    <div class="login-wrap">
+      <div class="login-deco"></div>
+      <div class="login-ring" style="width:380px;height:380px;bottom:-150px;left:-130px;"></div>
+      <div class="login-ring" style="width:240px;height:240px;top:-70px;right:500px;"></div>
+      <div class="login-left">
+        <div>
+          <div class="ll-logo-wrap">
+            <div class="ll-logo-box"><img id="ll-logo"
+                src="https://fr1ekw4xx.tribe.junction.express/uploads/2025/05-May/29-Thu/sm/header-icon_6838241632ce3.png"
+                alt="Logo"></div>
+            <div>
+              <div class="ll-bname">Peak Potentia</div>
+              <div class="ll-btag">Excellence in Academics and Research</div>
+            </div>
+          </div>
+          <h1 class="ll-headline">Your academic<br><em>journey,</em> tracked.</h1>
+          <p class="ll-sub">Monitor assessments, track growth, and stay on top of every subject — all in one place.</p>
         </div>
-        <h1 class="ll-headline">Your academic<br><em>journey,</em> tracked.</h1>
-        <p class="ll-sub">Monitor assessments, track growth, and stay on top of every subject — all in one place.</p>
-      </div>
-      <div>
-        <!-- <div class="ll-stats">
+        <div>
+          <!-- <div class="ll-stats">
           <div><div class="ll-sv">5+</div><div class="ll-sl">Subjects</div></div>
           <div><div class="ll-sv">10</div><div class="ll-sl">Assessments</div></div>
           <div><div class="ll-sv">98%</div><div class="ll-sl">Uptime</div></div>
         </div> -->
-        <!-- <div class="ll-dots"><div class="ll-dot on"></div><div class="ll-dot"></div><div class="ll-dot"></div></div> -->
+          <!-- <div class="ll-dots"><div class="ll-dot on"></div><div class="ll-dot"></div><div class="ll-dot"></div></div> -->
+        </div>
       </div>
-    </div>
-    <div class="login-right">
-      <div class="lr-title">Welcome back</div>
-      <div class="lr-tag">Sign in to access your student dashboard</div>
-      <div id="login-err" class="login-err"></div>
-      <label class="fl" for="inp-user">Username</label>
-      <div class="fw">
-        <span class="fi-icon">👤</span>
-        <input class="fi" id="inp-user" type="text" placeholder="Enter your username" autocomplete="username">
+      <div class="login-right">
+        <div class="lr-title">Welcome back</div>
+        <div class="lr-tag">Sign in to access your student dashboard</div>
+        <div id="login-err" class="login-err"></div>
+        <label class="fl" for="inp-user">Username</label>
+        <div class="fw">
+          <span class="fi-icon">👤</span>
+          <input class="fi" id="inp-user" type="text" placeholder="Enter your username" autocomplete="username">
+        </div>
+        <label class="fl" for="inp-pass">Password</label>
+        <div class="fw">
+          <span class="fi-icon">🔒</span>
+          <input class="fi" id="inp-pass" type="password" placeholder="••••••••" autocomplete="current-password">
+          <button class="tog-pass" type="button" onclick="togglePass()">👁</button>
+        </div>
+        <button class="login-btn" id="login-btn" onclick="doLogin()">Sign in to portal</button>
+        <p class="login-forgot">Forgot password? <a href="#"
+            onclick="toast('Contact your admin to reset password.','ok');return false;">Contact admin</a></p>
       </div>
-      <label class="fl" for="inp-pass">Password</label>
-      <div class="fw">
-        <span class="fi-icon">🔒</span>
-        <input class="fi" id="inp-pass" type="password" placeholder="••••••••" autocomplete="current-password">
-        <button class="tog-pass" type="button" onclick="togglePass()">👁</button>
-      </div>
-      <button class="login-btn" id="login-btn" onclick="doLogin()">Sign in to portal</button>
-      <p class="login-forgot">Forgot password? <a href="#" onclick="toast('Contact your admin to reset password.','ok');return false;">Contact admin</a></p>
     </div>
   </div>
-</div>
 
-<!-- ═══ DASHBOARD ═══ -->
-<div id="s-dash" class="screen">
-  <div class="topbar">
-    <div class="tb-brand">
-      <div class="tb-logo"><img id="tb-logo" src="https://fr1ekw4xx.tribe.junction.express/uploads/2025/05-May/29-Thu/sm/header-icon_6838241632ce3.png" alt=""></div>
-      <span class="tb-title">Peak <em>Potentia</em></span>
-    </div>
-    <div class="tb-sep"></div>
-    <div class="tb-right">
-      <button class="tb-notif">🔔<span class="ndot"></span></button>
-      <div class="tb-vr"></div>
-      <div style="display:flex;align-items:center;gap:9px;">
-        <div class="tb-avatar" id="tb-av">—</div>
-        <div><div class="tb-uname" id="tb-un">—</div><div class="tb-urole" id="tb-ur">—</div></div>
+  <!-- ═══ DASHBOARD ═══ -->
+  <div id="s-dash" class="screen">
+    <div class="topbar">
+      <div class="tb-brand">
+        <div class="tb-logo"><img id="tb-logo"
+            src="https://fr1ekw4xx.tribe.junction.express/uploads/2025/05-May/29-Thu/sm/header-icon_6838241632ce3.png"
+            alt=""></div>
+        <span class="tb-title">Peak <em>Potentia</em></span>
       </div>
-      <div class="tb-vr"></div>
-      <button class="signout-btn" onclick="doLogout()">Sign out</button>
-    </div>
-  </div>
-  <div class="dash-body">
-    <div class="dash-greet">
-      <h2>Good morning, <em id="greet-name">—</em> ✦</h2>
-      <p>Here's what's happening in your portal today.</p>
-    </div>
-    <div class="notice-board">
-      <div class="nb-hdr">
-        <span class="nb-lbl">Notice board</span>
-        <span class="nb-badge" id="nb-ct">—</span>
-      </div>
-      <div class="notice-list" id="notice-list"><div class="loading-state">Loading…</div></div>
-    </div>
-    <div class="sec-lbl" id="subj-lbl">Enrolled Subjects</div>
-    <div class="subj-grid" id="subj-grid"><div class="loading-state" style="grid-column:1/-1">Loading subjects…</div></div>
-  </div>
-</div>
-
-<!-- ═══ SUBJECT DETAIL ═══ -->
-<div id="s-detail" class="screen">
-  <div class="topbar">
-    <div class="tb-brand">
-      <div class="tb-logo"><img id="tb2-logo" src="https://fr1ekw4xx.tribe.junction.express/uploads/2025/05-May/29-Thu/sm/header-icon_6838241632ce3.png" alt=""></div>
-      <span class="tb-title">Peak <em>Potentia</em></span>
-    </div>
-    <button class="back-btn" onclick="goBack()">← Back</button>
-    <div class="bc"><span>Dashboard</span><span style="opacity:.4"> › </span><span class="bc-cur" id="bc-name">—</span></div>
-    <div class="tb-sep"></div>
-    <div class="tb-right">
-      <div style="display:flex;align-items:center;gap:9px;">
-        <div class="tb-avatar" id="tb2-av">—</div>
-        <div><div class="tb-uname" id="tb2-un">—</div><div class="tb-urole" id="tb2-ur">—</div></div>
-      </div>
-      <div class="tb-vr"></div>
-      <button class="signout-btn" onclick="doLogout()">Sign out</button>
-    </div>
-  </div>
-  <div class="detail-body">
-    <div class="dh">
-      <div class="dh-icon" id="d-icon">—</div>
-      <div><div class="dh-title" id="d-title">—</div><div class="dh-meta" id="d-meta">—</div></div>
-    </div>
-    <div class="widgets-row">
-      <!-- Widget 1: Assessments -->
-      <div class="widget">
-        <div class="wlbl">Assessments Completed</div>
-        <div class="widget-ring-wrap">
-          <div class="widget-ring">
-            <svg width="70" height="70" viewBox="0 0 70 70">
-              <circle cx="35" cy="35" r="28" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="7"/>
-              <circle id="ring-arc" cx="35" cy="35" r="28" fill="none" stroke="var(--gold)" stroke-width="7" stroke-linecap="round" stroke-dasharray="0 175.9"/>
-            </svg>
-            <div class="ring-val" id="ring-pct">0%</div>
-          </div>
+      <div class="tb-sep"></div>
+      <div class="tb-right">
+        <button class="tb-notif">🔔<span class="ndot"></span></button>
+        <div class="tb-vr"></div>
+        <div style="display:flex;align-items:center;gap:9px;">
+          <div class="tb-avatar" id="tb-av">—</div>
           <div>
-            <div style="display:flex;align-items:flex-end;gap:6px;">
-              <span class="wv" id="w-done">0</span>
-              <span class="wd">/<span id="w-tot">10</span></span>
-            </div>
-            <div class="ws" id="w-rem">—</div>
+            <div class="tb-uname" id="tb-un">—</div>
+            <div class="tb-urole" id="tb-ur">—</div>
           </div>
         </div>
-      </div>
-      <!-- Widget 2: Average Score -->
-      <div class="widget">
-        <div class="wlbl">Average Score</div>
-        <div style="display:flex;align-items:flex-end;gap:6px;margin-bottom:10px;">
-          <span class="wv" id="w-avg" style="color:var(--gold);">—</span>
-          <span class="wd">%</span>
-        </div>
-        <div style="height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;margin-bottom:7px;">
-          <div id="avg-fill" style="height:100%;border-radius:3px;background:var(--gold);width:0%;transition:width .6s;"></div>
-        </div>
-        <div class="ws" id="w-vs">—</div>
-      </div>
-      <!-- Widget 3: Subscription -->
-      <div class="widget" id="pay-widget">
-        <div class="wlbl">Subscription Status</div>
-        <div id="pay-widget-body"><div class="loading-state" style="padding:16px 0">Loading…</div></div>
+        <div class="tb-vr"></div>
+        <button class="signout-btn" onclick="doLogout()">Sign out</button>
       </div>
     </div>
-    <!-- Chart -->
-    <div class="chart-card">
-      <div class="chart-hdr">
-        <div class="chart-ttl">Monthly Performance</div>
-        <div class="chart-leg">
-          <div class="cli"><div class="cldot" style="background:var(--gold);"></div>Your score</div>
-          <div class="cli"><div class="cldot" style="background:rgba(138,160,184,.5);"></div>Class avg</div>
+    <div class="dash-body">
+      <div class="dash-greet">
+        <h2>Good morning, <em id="greet-name">—</em> ✦</h2>
+        <p>Here's what's happening in your portal today.</p>
+      </div>
+      <div class="notice-board">
+        <div class="nb-hdr">
+          <span class="nb-lbl">Notice board</span>
+          <span class="nb-badge" id="nb-ct">—</span>
+        </div>
+        <div class="notice-list" id="notice-list">
+          <div class="loading-state">Loading…</div>
         </div>
       </div>
-      <div class="chart-area" id="chart-area"><div class="loading-state">Loading chart…</div></div>
-    </div>
-    <!-- Assessment Table -->
-    <div class="table-card">
-      <div class="thr">
-        <div class="ttl">Assessment Breakdown</div>
-        <span style="font-size:12px;color:var(--muted);" id="tbl-meta">—</span>
+      <div class="sec-lbl" id="subj-lbl">Enrolled Subjects</div>
+      <div class="subj-grid" id="subj-grid">
+        <div class="loading-state" style="grid-column:1/-1">Loading subjects…</div>
       </div>
-      <div style="overflow-x:auto;">
-        <table>
-          <thead><tr><th>#</th><th>Assessment Name</th><th>Class Avg</th><th>Your Score</th><th>Remarks</th></tr></thead>
-          <tbody id="asmnt-body"><tr><td colspan="5" class="loading-state">Loading…</td></tr></tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- ═══ ASSIGNMENTS SECTION ═══ -->
-    <div id="assign-section" style="margin-top:18px;display:none;background:var(--card);border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:20px 24px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid rgba(255,255,255,0.07);">
-        <div style="font-weight:600;font-size:15px;color:var(--cream);">Assignments</div>
-        <span id="assign-count-lbl" style="font-size:12px;color:var(--muted);">—</span>
-      </div>
-      <div id="assign-list-student"></div>
-    </div>
-
-  </div>
-</div>
-
-<!-- ═══ VIEW ASSIGNMENT MODAL ═══ -->
-<div id="view-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9998;align-items:flex-start;justify-content:center;overflow-y:auto;padding:24px 12px;"
-  oncontextmenu="return false;">
-  <div style="background:#141c2e;border:1px solid rgba(255,255,255,0.12);border-radius:16px;padding:24px;width:100%;max-width:860px;box-shadow:0 32px 100px rgba(0,0,0,0.7);"
-    onselectstart="return false;" ondragstart="return false;">
-    <div id="view-modal-body"></div>
-  </div>
-</div>
-
-<!-- ═══ SUBMIT MODAL ═══ -->
-<div id="submit-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;">
-  <div style="background:#1a2035;border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:28px;width:90%;max-width:420px;box-shadow:0 24px 80px rgba(0,0,0,0.5);">
-    <div style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:var(--cream);margin-bottom:5px;">Submit Assignment</div>
-    <div id="modal-assign-title" style="font-size:13px;color:var(--muted);margin-bottom:20px;">—</div>
-    <label style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:8px;">Upload File (PDF / Image / Word)</label>
-    <input type="file" id="submit-file-input" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
-      style="width:100%;padding:10px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:var(--cream);font-size:13px;margin-bottom:12px;box-sizing:border-box;">
-    <div id="submit-err" style="display:none;color:#fc8181;font-size:12.5px;margin-bottom:10px;padding:8px 12px;background:rgba(252,129,129,0.1);border-radius:6px;"></div>
-    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px;">
-      <button onclick="closeSubmitModal()"
-        style="padding:9px 18px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:transparent;color:var(--muted);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;">
-        Cancel
-      </button>
-      <button onclick="doSubmitAssignment()"
-        style="padding:9px 20px;border:none;border-radius:8px;background:var(--gold);color:#111;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">
-        Submit →
-      </button>
     </div>
   </div>
-</div>
 
-<!-- ═══ PAYMENT ═══ -->
-<div id="s-pay" class="screen">
-  <div class="topbar">
-    <div class="tb-brand">
-      <div class="tb-logo"><img id="tb3-logo" src="https://fr1ekw4xx.tribe.junction.express/uploads/2025/05-May/29-Thu/sm/header-icon_6838241632ce3.png" alt=""></div>
-      <span class="tb-title">Peak <em>Potentia</em></span>
-    </div>
-    <button class="back-btn" onclick="goBack()">← Back</button>
-    <div class="bc"><span>Dashboard</span><span style="opacity:.4"> › </span><span class="bc-cur" id="pay-bc">Payment</span></div>
-    <div class="tb-sep"></div>
-    <div class="tb-right">
-      <div style="display:flex;align-items:center;gap:9px;">
-        <div class="tb-avatar" id="tb3-av">—</div>
-        <div><div class="tb-uname" id="tb3-un">—</div><div class="tb-urole" id="tb3-ur">—</div></div>
+  <!-- ═══ SUBJECT DETAIL ═══ -->
+  <div id="s-detail" class="screen">
+    <div class="topbar">
+      <div class="tb-brand">
+        <div class="tb-logo"><img id="tb2-logo"
+            src="https://fr1ekw4xx.tribe.junction.express/uploads/2025/05-May/29-Thu/sm/header-icon_6838241632ce3.png"
+            alt=""></div>
+        <span class="tb-title">Peak <em>Potentia</em></span>
       </div>
-      <div class="tb-vr"></div>
-      <button class="signout-btn" onclick="doLogout()">Sign out</button>
-    </div>
-  </div>
-  <div class="pay-body">
-    <div class="pay-eyebrow">Fee Payment</div>
-    <div class="pay-title">Complete your<br>payment</div>
-    <div class="pay-subtitle">Choose a method below to activate <strong id="pay-sname" style="color:var(--cream);">this subject</strong>.</div>
-    <div class="pay-amount-box">
-      <div>
-        <div class="pab-lbl">Amount Due</div>
-        <div class="pab-val">₹ <span id="pay-fee">—</span></div>
-      </div>
-      <div>
-        <div class="pab-sname"><span id="pay-sicon">—</span> <span id="pay-sname2">—</span></div>
-        <div class="pab-period">Monthly subscription</div>
+      <button class="back-btn" onclick="goBack()">← Back</button>
+      <div class="bc"><span>Dashboard</span><span style="opacity:.4"> › </span><span class="bc-cur"
+          id="bc-name">—</span></div>
+      <div class="tb-sep"></div>
+      <div class="tb-right">
+        <div style="display:flex;align-items:center;gap:9px;">
+          <div class="tb-avatar" id="tb2-av">—</div>
+          <div>
+            <div class="tb-uname" id="tb2-un">—</div>
+            <div class="tb-urole" id="tb2-ur">—</div>
+          </div>
+        </div>
+        <div class="tb-vr"></div>
+        <button class="signout-btn" onclick="doLogout()">Sign out</button>
       </div>
     </div>
-    <div class="pay-methods-lbl">Select Payment Method</div>
-    <div class="pay-methods">
-      <!-- UPI -->
-      <div class="pay-mc" id="mc-upi" onclick="selectMethod('upi')">
-        <div class="pay-mh">
-          <div class="pay-radio"><div class="pay-rdot"></div></div>
-          <div class="pay-micon upi">📱</div>
-          <div><div class="pay-mname">UPI Payment</div><div class="pay-mdesc">GPay, PhonePe, Paytm — scan and pay instantly</div></div>
-        </div>
-        <div class="pay-mbody" id="body-upi" style="display:none;">
-          <div class="qr-wrap">
-            <div class="qr-box">
-              <svg viewBox="0 0 110 110" xmlns="http://www.w3.org/2000/svg" width="90" height="90">
-                <rect width="110" height="110" fill="#fff"/>
-                <rect x="8" y="8" width="28" height="28" fill="#111827" rx="2"/><rect x="12" y="12" width="20" height="20" fill="#fff" rx="1"/><rect x="16" y="16" width="12" height="12" fill="#111827" rx="1"/>
-                <rect x="74" y="8" width="28" height="28" fill="#111827" rx="2"/><rect x="78" y="12" width="20" height="20" fill="#fff" rx="1"/><rect x="82" y="16" width="12" height="12" fill="#111827" rx="1"/>
-                <rect x="8" y="74" width="28" height="28" fill="#111827" rx="2"/><rect x="12" y="78" width="20" height="20" fill="#fff" rx="1"/><rect x="16" y="82" width="12" height="12" fill="#111827" rx="1"/>
-                <rect x="44" y="8" width="8" height="8" fill="#111827" rx="1"/><rect x="56" y="8" width="8" height="8" fill="#111827" rx="1"/>
-                <rect x="44" y="20" width="4" height="4" fill="#111827" rx="1"/><rect x="52" y="20" width="4" height="4" fill="#111827" rx="1"/><rect x="60" y="20" width="8" height="4" fill="#111827" rx="1"/>
-                <rect x="44" y="44" width="4" height="4" fill="#111827" rx="1"/><rect x="52" y="44" width="12" height="4" fill="#111827" rx="1"/>
-                <rect x="44" y="52" width="8" height="4" fill="#111827" rx="1"/><rect x="56" y="52" width="4" height="4" fill="#111827" rx="1"/>
-                <rect x="72" y="52" width="8" height="8" fill="#111827" rx="1"/><rect x="84" y="52" width="4" height="4" fill="#111827" rx="1"/>
-                <rect x="44" y="60" width="4" height="8" fill="#111827" rx="1"/><rect x="52" y="64" width="8" height="4" fill="#111827" rx="1"/>
-                <rect x="88" y="60" width="12" height="4" fill="#111827" rx="1"/><rect x="44" y="72" width="12" height="4" fill="#111827" rx="1"/>
-                <rect x="60" y="72" width="4" height="8" fill="#111827" rx="1"/><rect x="68" y="76" width="8" height="4" fill="#111827" rx="1"/>
-                <rect x="88" y="72" width="4" height="8" fill="#111827" rx="1"/><rect x="44" y="80" width="4" height="4" fill="#111827" rx="1"/>
-                <rect x="52" y="80" width="4" height="4" fill="#111827" rx="1"/><rect x="68" y="84" width="12" height="8" fill="#111827" rx="1"/>
-                <rect x="84" y="84" width="4" height="8" fill="#111827" rx="1"/><rect x="44" y="88" width="4" height="12" fill="#111827" rx="1"/>
-                <rect x="52" y="92" width="8" height="8" fill="#111827" rx="1"/>
-              </svg>
-            </div>
-            <div style="flex:1;">
-              <div class="qr-inst">Scan QR and pay <strong>₹ <span id="upi-fee">—</span></strong> using any UPI app. Enter your UTR number below after paying.</div>
-              <div class="qr-uid">UPI ID: <span>peakpotentia.fees@okaxis</span></div>
-            </div>
-          </div>
-          <div class="utr-wrap">
-            <label class="utr-label">UTR / Transaction Reference Number</label>
-            <input class="utr-input" id="utr-upi" type="text" placeholder="e.g. 412345678901">
-          </div>
-        </div>
-      </div>
-      <!-- Bank Transfer -->
-      <div class="pay-mc" id="mc-bank" onclick="selectMethod('bank')">
-        <div class="pay-mh">
-          <div class="pay-radio"><div class="pay-rdot"></div></div>
-          <div class="pay-micon bank">🏦</div>
-          <div><div class="pay-mname">Bank Transfer / NEFT</div><div class="pay-mdesc">Transfer directly to our account — NEFT / IMPS / RTGS</div></div>
-        </div>
-        <div class="pay-mbody" id="body-bank" style="display:none;">
-          <div class="bank-grid">
-            <div class="bf"><div class="bfl">Account Name</div><div class="bfv">Peak Potentia Edu. Pvt. Ltd.</div></div>
-            <div class="bf"><div class="bfl">Account Number</div><div class="bfv">0042 1234 5678 90</div></div>
-            <div class="bf"><div class="bfl">IFSC Code</div><div class="bfv">HDFC0004210</div></div>
-            <div class="bf"><div class="bfl">Bank &amp; Branch</div><div class="bfv">HDFC Bank, Connaught Place</div></div>
-          </div>
-          <div style="font-size:13.5px;color:var(--muted);line-height:1.6;margin-bottom:14px;">
-            Transfer <strong style="color:var(--cream);">₹ <span id="bank-fee">—</span></strong> and use your <strong style="color:var(--gold);">Roll No. <span id="bank-roll">—</span></strong> as the payment reference.
-          </div>
-          <div class="utr-wrap">
-            <label class="utr-label">UTR / Transaction Reference Number</label>
-            <input class="utr-input" id="utr-bank" type="text" placeholder="e.g. HDFC412345678901">
-          </div>
-        </div>
-      </div>
-      <!-- Cash -->
-      <div class="pay-mc" id="mc-cash" onclick="selectMethod('cash')">
-        <div class="pay-mh">
-          <div class="pay-radio"><div class="pay-rdot"></div></div>
-          <div class="pay-micon cash">💵</div>
-          <div><div class="pay-mname">Cash Payment</div><div class="pay-mdesc">Visit the admin office and pay at the counter</div></div>
-        </div>
-        <div class="pay-mbody" id="body-cash" style="display:none;">
-          <div class="cash-note">
-            Visit the <strong>Admin &amp; Finance Office</strong> (Ground Floor, Block A) during working hours — <strong>Mon–Sat, 9 AM – 4 PM</strong>.
-            Pay <strong>₹ <span id="cash-fee">—</span></strong> at the counter, collect your receipt, then click Submit below to log your request.
-          </div>
-        </div>
-      </div>
-    </div>
-    <button class="pay-submit" id="pay-submit-btn" disabled onclick="submitPayment()">Select a payment method to continue</button>
-    <p class="pay-note">Payments are verified by our team within 24 hours.<br>Your subject will be activated once confirmed.</p>
-  </div>
-</div>
-
-
-<!-- ══ MY WORK MODAL (Student) ══ -->
-<div id="my-work-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 12px;">
-  <div style="background:#141c2e;border:1px solid rgba(255,255,255,0.12);border-radius:16px;width:100%;max-width:800px;box-shadow:0 32px 100px rgba(0,0,0,0.7);padding:24px;">
-
-    <!-- Header -->
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div style="font-size:22px;">📋</div>
+    <div class="detail-body">
+      <div class="dh">
+        <div class="dh-icon" id="d-icon">—</div>
         <div>
-          <div style="font-size:14px;font-weight:600;color:var(--cream);" id="mw-fname">My Submission</div>
-          <div style="font-size:12px;color:var(--muted);">Your submitted worksheet</div>
+          <div class="dh-title" id="d-title">—</div>
+          <div class="dh-meta" id="d-meta">—</div>
         </div>
       </div>
-      <button onclick="closeMyWork()" style="background:rgba(255,255,255,0.08);border:none;color:var(--muted);font-size:20px;cursor:pointer;border-radius:50%;width:36px;height:36px;">×</button>
-    </div>
+      <div class="widgets-row">
+        <!-- Widget 1: Assessments -->
+        <div class="widget">
+          <div class="wlbl">Assessments Completed</div>
+          <div class="widget-ring-wrap">
+            <div class="widget-ring">
+              <svg width="70" height="70" viewBox="0 0 70 70">
+                <circle cx="35" cy="35" r="28" fill="none" stroke="rgba(255,255,255,.07)" stroke-width="7" />
+                <circle id="ring-arc" cx="35" cy="35" r="28" fill="none" stroke="var(--gold)" stroke-width="7"
+                  stroke-linecap="round" stroke-dasharray="0 175.9" />
+              </svg>
+              <div class="ring-val" id="ring-pct">0%</div>
+            </div>
+            <div>
+              <div style="display:flex;align-items:flex-end;gap:6px;">
+                <span class="wv" id="w-done">0</span>
+                <span class="wd">/<span id="w-tot">10</span></span>
+              </div>
+              <div class="ws" id="w-rem">—</div>
+            </div>
+          </div>
+        </div>
+        <!-- Widget 2: Average Score -->
+        <div class="widget">
+          <div class="wlbl">Average Score</div>
+          <div style="display:flex;align-items:flex-end;gap:6px;margin-bottom:10px;">
+            <span class="wv" id="w-avg" style="color:var(--gold);">—</span>
+            <span class="wd">%</span>
+          </div>
+          <div style="height:5px;background:rgba(255,255,255,.08);border-radius:3px;overflow:hidden;margin-bottom:7px;">
+            <div id="avg-fill"
+              style="height:100%;border-radius:3px;background:var(--gold);width:0%;transition:width .6s;"></div>
+          </div>
+          <div class="ws" id="w-vs">—</div>
+        </div>
+        <!-- Widget 3: Subscription -->
+        <div class="widget" id="pay-widget">
+          <div class="wlbl">Subscription Status</div>
+          <div id="pay-widget-body">
+            <div class="loading-state" style="padding:16px 0">Loading…</div>
+          </div>
+        </div>
+      </div>
+      <!-- Chart -->
+      <div class="chart-card">
+        <div class="chart-hdr">
+          <div class="chart-ttl">Monthly Performance</div>
+          <div class="chart-leg">
+            <div class="cli">
+              <div class="cldot" style="background:var(--gold);"></div>Your score
+            </div>
+            <div class="cli">
+              <div class="cldot" style="background:rgba(138,160,184,.5);"></div>Class avg
+            </div>
+          </div>
+        </div>
+        <div class="chart-area" id="chart-area">
+          <div class="loading-state">Loading chart…</div>
+        </div>
+      </div>
+      <!-- Assessment Table -->
+      <div class="table-card">
+        <div class="thr">
+          <div class="ttl">Assessment Breakdown</div>
+          <span style="font-size:12px;color:var(--muted);" id="tbl-meta">—</span>
+        </div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Assessment Name</th>
+                <th>Class Avg</th>
+                <th>Your Score</th>
+                <th>Remarks</th>
+              </tr>
+            </thead>
+            <tbody id="asmnt-body">
+              <tr>
+                <td colspan="5" class="loading-state">Loading…</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
 
-    <!-- File viewer -->
-    <div id="mw-file-area" style="min-height:300px;background:rgba(0,0,0,0.2);border-radius:12px;overflow:hidden;"></div>
+      <!-- ═══ ASSIGNMENTS SECTION ═══ -->
+      <div id="assign-section" class="table-card">
+        <div class="thr">
+          <div class="ttl" style="font-weight:600;font-size:17px;color:var(--cream);">Assignments</div>
+          <span id="assign-count-lbl" style="font-size:12px;color:var(--muted);">—</span>
+        </div>
 
-    <!-- Teacher remark -->
-    <div id="mw-remark"></div>
+        <div id="assign-list-student"></div>
+      </div>
 
-    <!-- Close button -->
-    <div style="margin-top:16px;text-align:right;">
-      <button onclick="closeMyWork()" style="padding:9px 22px;background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.15);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;">Close</button>
     </div>
   </div>
-</div>
 
-<script src="main.js"></script>
+  <!-- ═══ VIEW ASSIGNMENT MODAL ═══ -->
+  <div id="view-modal"
+    style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9998;align-items:flex-start;justify-content:center;overflow-y:auto;padding:24px 12px;"
+    oncontextmenu="return false;">
+    <div
+      style="background:#141c2e;border:1px solid rgba(255,255,255,0.12);border-radius:16px;padding:24px;width:100%;max-width:860px;box-shadow:0 32px 100px rgba(0,0,0,0.7);"
+      onselectstart="return false;" ondragstart="return false;">
+      <div id="view-modal-body"></div>
+    </div>
+  </div>
+
+  <!-- ═══ SUBMIT MODAL ═══ -->
+  <div id="submit-modal"
+    style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;align-items:center;justify-content:center;">
+    <div
+      style="background:#1a2035;border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:28px;width:90%;max-width:420px;box-shadow:0 24px 80px rgba(0,0,0,0.5);">
+      <div
+        style="font-family:'Cormorant Garamond',serif;font-size:20px;font-weight:700;color:var(--cream);margin-bottom:5px;">
+        Submit Assignment</div>
+      <div id="modal-assign-title" style="font-size:13px;color:var(--muted);margin-bottom:20px;">—</div>
+      <label
+        style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);display:block;margin-bottom:8px;">Upload
+        File (PDF / Image / Word)</label>
+      <input type="file" id="submit-file-input" accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+        style="width:100%;padding:10px 12px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);border-radius:8px;color:var(--cream);font-size:13px;margin-bottom:12px;box-sizing:border-box;">
+      <div id="submit-err"
+        style="display:none;color:#fc8181;font-size:12.5px;margin-bottom:10px;padding:8px 12px;background:rgba(252,129,129,0.1);border-radius:6px;">
+      </div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:4px;">
+        <button onclick="closeSubmitModal()"
+          style="padding:9px 18px;border:1px solid rgba(255,255,255,0.15);border-radius:8px;background:transparent;color:var(--muted);font-size:13px;cursor:pointer;font-family:'DM Sans',sans-serif;">
+          Cancel
+        </button>
+        <button onclick="doSubmitAssignment()"
+          style="padding:9px 20px;border:none;border-radius:8px;background:var(--gold);color:#111;font-size:13px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;">
+          Submit →
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ PAYMENT ═══ -->
+  <div id="s-pay" class="screen">
+    <div class="topbar">
+      <div class="tb-brand">
+        <div class="tb-logo"><img id="tb3-logo"
+            src="https://fr1ekw4xx.tribe.junction.express/uploads/2025/05-May/29-Thu/sm/header-icon_6838241632ce3.png"
+            alt=""></div>
+        <span class="tb-title">Peak <em>Potentia</em></span>
+      </div>
+      <button class="back-btn" onclick="goBack()">← Back</button>
+      <div class="bc"><span>Dashboard</span><span style="opacity:.4"> › </span><span class="bc-cur"
+          id="pay-bc">Payment</span></div>
+      <div class="tb-sep"></div>
+      <div class="tb-right">
+        <div style="display:flex;align-items:center;gap:9px;">
+          <div class="tb-avatar" id="tb3-av">—</div>
+          <div>
+            <div class="tb-uname" id="tb3-un">—</div>
+            <div class="tb-urole" id="tb3-ur">—</div>
+          </div>
+        </div>
+        <div class="tb-vr"></div>
+        <button class="signout-btn" onclick="doLogout()">Sign out</button>
+      </div>
+    </div>
+    <div class="pay-body">
+      <div class="pay-eyebrow">Fee Payment</div>
+      <div class="pay-title">Complete your<br>payment</div>
+      <div class="pay-subtitle">Choose a method below to activate <strong id="pay-sname"
+          style="color:var(--cream);">this subject</strong>.</div>
+      <div class="pay-amount-box">
+        <div>
+          <div class="pab-lbl">Amount Due</div>
+          <div class="pab-val">₹ <span id="pay-fee">—</span></div>
+        </div>
+        <div>
+          <div class="pab-sname"><span id="pay-sicon">—</span> <span id="pay-sname2">—</span></div>
+          <div class="pab-period">Monthly subscription</div>
+        </div>
+      </div>
+      <div class="pay-methods-lbl">Select Payment Method</div>
+      <div class="pay-methods">
+        <!-- UPI -->
+        <div class="pay-mc" id="mc-upi" onclick="selectMethod('upi')">
+          <div class="pay-mh">
+            <div class="pay-radio">
+              <div class="pay-rdot"></div>
+            </div>
+            <div class="pay-micon upi">📱</div>
+            <div>
+              <div class="pay-mname">UPI Payment</div>
+              <div class="pay-mdesc">GPay, PhonePe, Paytm — scan and pay instantly</div>
+            </div>
+          </div>
+          <div class="pay-mbody" id="body-upi" style="display:none;">
+            <div class="qr-wrap">
+              <div class="qr-box">
+                <svg viewBox="0 0 110 110" xmlns="http://www.w3.org/2000/svg" width="90" height="90">
+                  <rect width="110" height="110" fill="#fff" />
+                  <rect x="8" y="8" width="28" height="28" fill="#111827" rx="2" />
+                  <rect x="12" y="12" width="20" height="20" fill="#fff" rx="1" />
+                  <rect x="16" y="16" width="12" height="12" fill="#111827" rx="1" />
+                  <rect x="74" y="8" width="28" height="28" fill="#111827" rx="2" />
+                  <rect x="78" y="12" width="20" height="20" fill="#fff" rx="1" />
+                  <rect x="82" y="16" width="12" height="12" fill="#111827" rx="1" />
+                  <rect x="8" y="74" width="28" height="28" fill="#111827" rx="2" />
+                  <rect x="12" y="78" width="20" height="20" fill="#fff" rx="1" />
+                  <rect x="16" y="82" width="12" height="12" fill="#111827" rx="1" />
+                  <rect x="44" y="8" width="8" height="8" fill="#111827" rx="1" />
+                  <rect x="56" y="8" width="8" height="8" fill="#111827" rx="1" />
+                  <rect x="44" y="20" width="4" height="4" fill="#111827" rx="1" />
+                  <rect x="52" y="20" width="4" height="4" fill="#111827" rx="1" />
+                  <rect x="60" y="20" width="8" height="4" fill="#111827" rx="1" />
+                  <rect x="44" y="44" width="4" height="4" fill="#111827" rx="1" />
+                  <rect x="52" y="44" width="12" height="4" fill="#111827" rx="1" />
+                  <rect x="44" y="52" width="8" height="4" fill="#111827" rx="1" />
+                  <rect x="56" y="52" width="4" height="4" fill="#111827" rx="1" />
+                  <rect x="72" y="52" width="8" height="8" fill="#111827" rx="1" />
+                  <rect x="84" y="52" width="4" height="4" fill="#111827" rx="1" />
+                  <rect x="44" y="60" width="4" height="8" fill="#111827" rx="1" />
+                  <rect x="52" y="64" width="8" height="4" fill="#111827" rx="1" />
+                  <rect x="88" y="60" width="12" height="4" fill="#111827" rx="1" />
+                  <rect x="44" y="72" width="12" height="4" fill="#111827" rx="1" />
+                  <rect x="60" y="72" width="4" height="8" fill="#111827" rx="1" />
+                  <rect x="68" y="76" width="8" height="4" fill="#111827" rx="1" />
+                  <rect x="88" y="72" width="4" height="8" fill="#111827" rx="1" />
+                  <rect x="44" y="80" width="4" height="4" fill="#111827" rx="1" />
+                  <rect x="52" y="80" width="4" height="4" fill="#111827" rx="1" />
+                  <rect x="68" y="84" width="12" height="8" fill="#111827" rx="1" />
+                  <rect x="84" y="84" width="4" height="8" fill="#111827" rx="1" />
+                  <rect x="44" y="88" width="4" height="12" fill="#111827" rx="1" />
+                  <rect x="52" y="92" width="8" height="8" fill="#111827" rx="1" />
+                </svg>
+              </div>
+              <div style="flex:1;">
+                <div class="qr-inst">Scan QR and pay <strong>₹ <span id="upi-fee">—</span></strong> using any UPI app.
+                  Enter your UTR number below after paying.</div>
+                <div class="qr-uid">UPI ID: <span>peakpotentia.fees@okaxis</span></div>
+              </div>
+            </div>
+            <div class="utr-wrap">
+              <label class="utr-label">UTR / Transaction Reference Number</label>
+              <input class="utr-input" id="utr-upi" type="text" placeholder="e.g. 412345678901">
+            </div>
+          </div>
+        </div>
+        <!-- Bank Transfer -->
+        <div class="pay-mc" id="mc-bank" onclick="selectMethod('bank')">
+          <div class="pay-mh">
+            <div class="pay-radio">
+              <div class="pay-rdot"></div>
+            </div>
+            <div class="pay-micon bank">🏦</div>
+            <div>
+              <div class="pay-mname">Bank Transfer / NEFT</div>
+              <div class="pay-mdesc">Transfer directly to our account — NEFT / IMPS / RTGS</div>
+            </div>
+          </div>
+          <div class="pay-mbody" id="body-bank" style="display:none;">
+            <div class="bank-grid">
+              <div class="bf">
+                <div class="bfl">Account Name</div>
+                <div class="bfv">Peak Potentia Edu. Pvt. Ltd.</div>
+              </div>
+              <div class="bf">
+                <div class="bfl">Account Number</div>
+                <div class="bfv">0042 1234 5678 90</div>
+              </div>
+              <div class="bf">
+                <div class="bfl">IFSC Code</div>
+                <div class="bfv">HDFC0004210</div>
+              </div>
+              <div class="bf">
+                <div class="bfl">Bank &amp; Branch</div>
+                <div class="bfv">HDFC Bank, Connaught Place</div>
+              </div>
+            </div>
+            <div style="font-size:13.5px;color:var(--muted);line-height:1.6;margin-bottom:14px;">
+              Transfer <strong style="color:var(--cream);">₹ <span id="bank-fee">—</span></strong> and use your <strong
+                style="color:var(--gold);">Roll No. <span id="bank-roll">—</span></strong> as the payment reference.
+            </div>
+            <div class="utr-wrap">
+              <label class="utr-label">UTR / Transaction Reference Number</label>
+              <input class="utr-input" id="utr-bank" type="text" placeholder="e.g. HDFC412345678901">
+            </div>
+          </div>
+        </div>
+        <!-- Cash -->
+        <div class="pay-mc" id="mc-cash" onclick="selectMethod('cash')">
+          <div class="pay-mh">
+            <div class="pay-radio">
+              <div class="pay-rdot"></div>
+            </div>
+            <div class="pay-micon cash">💵</div>
+            <div>
+              <div class="pay-mname">Cash Payment</div>
+              <div class="pay-mdesc">Visit the admin office and pay at the counter</div>
+            </div>
+          </div>
+          <div class="pay-mbody" id="body-cash" style="display:none;">
+            <div class="cash-note">
+              Visit the <strong>Admin &amp; Finance Office</strong> (Ground Floor, Block A) during working hours —
+              <strong>Mon–Sat, 9 AM – 4 PM</strong>.
+              Pay <strong>₹ <span id="cash-fee">—</span></strong> at the counter, collect your receipt, then click
+              Submit below to log your request.
+            </div>
+          </div>
+        </div>
+      </div>
+      <button class="pay-submit" id="pay-submit-btn" disabled onclick="submitPayment()">Select a payment method to
+        continue</button>
+      <p class="pay-note">Payments are verified by our team within 24 hours.<br>Your subject will be activated once
+        confirmed.</p>
+    </div>
+  </div>
+
+
+  <!-- ══ MY WORK MODAL (Student) ══ -->
+  <div id="my-work-modal"
+    style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.88);z-index:9999;align-items:flex-start;justify-content:center;overflow-y:auto;padding:20px 12px;">
+    <div
+      style="background:#141c2e;border:1px solid rgba(255,255,255,0.12);border-radius:16px;width:100%;max-width:800px;box-shadow:0 32px 100px rgba(0,0,0,0.7);padding:24px;">
+
+      <!-- Header -->
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:18px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <div style="font-size:22px;">📋</div>
+          <div>
+            <div style="font-size:14px;font-weight:600;color:var(--cream);" id="mw-fname">My Submission</div>
+            <div style="font-size:12px;color:var(--muted);">Your submitted worksheet</div>
+          </div>
+        </div>
+        <button onclick="closeMyWork()"
+          style="background:rgba(255,255,255,0.08);border:none;color:var(--muted);font-size:20px;cursor:pointer;border-radius:50%;width:36px;height:36px;">×</button>
+      </div>
+
+      <!-- File viewer -->
+      <div id="mw-file-area" style="min-height:300px;background:rgba(0,0,0,0.2);border-radius:12px;overflow:hidden;">
+      </div>
+
+      <!-- Teacher remark -->
+      <div id="mw-remark"></div>
+
+      <!-- Close button -->
+      <div style="margin-top:16px;text-align:right;">
+        <button onclick="closeMyWork()"
+          style="padding:9px 22px;background:transparent;color:var(--muted);border:1px solid rgba(255,255,255,0.15);border-radius:8px;font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="main.js"></script>
 </body>
+
 </html>

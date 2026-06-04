@@ -4,7 +4,7 @@
     box-sizing: border-box;
 }
 
-:root {
+/* :root {
     --navy: #071919;
     --navy-mid: #0c2323;
     --navy-light: #152e2e;
@@ -23,8 +23,29 @@
     --card: #0d2424;
     --card2: #102929;
     --border: rgba(0, 184, 180, 0.2);
-}
+} */
 
+:root {
+    --navy: #ffffff;          /* main background → white */
+    --navy-mid: #f2f8f8;      /* halka teal-white panel */
+    --navy-light: #e6f1f1;    /* raised surface */
+    --teal: #00B8B4;          /* accent same */
+    --teal-light: #1ED8D4;
+    --teal-dim: rgba(0, 184, 180, 0.12);
+    --yellow: #d99e00;        /* white bg pe contrast ke liye thoda dark */
+    --yellow-light: #F5C200;
+    --cream: #0a2222;         /* main text → near-black teal */
+    --muted: #5b8482;         /* secondary text → grey-teal */
+    --green: #2e9d6e;
+    --red: #d35858;
+    --orange: #d97f33;
+    --blue: #2f7fe0;
+    --purple: #9a5fd8;
+    --card: #ffffff;          /* card → white */
+    --card2: #f5fafa;         /* card-2 → off-white */
+    --border: rgba(0, 184, 180, 0.28);
+}
+    
 body {
     font-family: 'DM Sans', sans-serif;
     background: var(--navy);
@@ -57,7 +78,7 @@ body {
 .login-wrap {
     min-height: 100vh;
     display: flex;
-    background: linear-gradient(135deg, #050f0f, #071919 50%, #0a2020);
+    /* background: linear-gradient(135deg, #050f0f, #071919 50%, #0a2020); */
     position: relative;
     overflow: hidden;
 }

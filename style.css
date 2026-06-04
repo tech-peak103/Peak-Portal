@@ -7,7 +7,7 @@
   padding: 0
 }
 
-:root {
+/* :root {
   --navy: #0d1b2a;
   --navy-mid: #14263a;
   --navy-lt: #1e3450;
@@ -21,6 +21,21 @@
   --card: #172740;
   --border: rgba(201, 168, 76, .18);
   --border2: rgba(255, 255, 255, .05);
+} */
+:root {
+  --navy: #ffffff;       /* main background → pura white */
+  --navy-mid: #f4f7fb;   /* halka off-white panel */
+  --navy-lt: #e8eef6;    /* raised surface / card-2 */
+  --gold: #2563eb;       /* accent → blue */
+  --gold-lt: #3b82f6;    /* lighter blue */
+  --cream: #0a0f1a;      /* main text → near-black */
+  --muted: #5b6b7f;      /* secondary text → grey-blue */
+  --green: #1e9e6a;
+  --red: #d64545;
+  --orange: #d97a2b;
+  --card: #ffffff;       /* card background → white */
+  --border: rgba(13, 27, 42, .12);
+  --border2: rgba(0, 0, 0, .06);
 }
 
 html {
@@ -220,7 +235,7 @@ body {
 .login-wrap {
   min-height: 100vh;
   display: flex;
-  background: linear-gradient(135deg, #0a1520, #0d1b2a 50%, #0f2035);
+  /* background: linear-gradient(135deg, #0a1520, #0d1b2a 50%, #0f2035); */
   position: relative;
   overflow: hidden;
 }
@@ -1277,6 +1292,10 @@ body {
 }
 
 /* ═══ TABLE ═══ */
+
+#assign-section{
+  margin-top: 1.9rem;
+}
 .table-card {
   background: var(--card);
   border: 1px solid var(--border);

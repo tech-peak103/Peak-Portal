@@ -1058,40 +1058,52 @@ async function viewAssignment(assignId) {
 /* ════════════════════════════════════════════════
    ✅ NEW: Show the PDF via a blob (download fix)
 ════════════════════════════════════════════════ */
+/* ✅ PDF.js ko ek hi baar load karo (mobile + desktop dono ke liye) */
+async function ensurePdfJs() {
+  if (window.pdfjsLib) return window.pdfjsLib;
+  await new Promise((resolve, reject) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    sc.onload = resolve;
+    sc.onerror = () => reject(new Error('PDF.js load failed'));
+    document.head.appendChild(sc);
+  });
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  return window.pdfjsLib;
+}
+
+/* ✅ PDF / IMAGE / OFFICE — sabko inline dikhao (mobile fix) */
 async function loadPdfBlob(url, containerId = 'pdf-frame-container') {
   const container = document.getElementById(containerId);
   if (!container) return;
 
-  /* free the previous blob from memory (each container has its own) */
+  /* pichla blob free karo */
   if (_blobUrls[containerId]) { try { URL.revokeObjectURL(_blobUrls[containerId]); } catch (e) {} _blobUrls[containerId] = null; }
 
-  /* Get the file extension (stripping query/hash) */
   const cleanUrl = url.split('#')[0].split('?')[0].toLowerCase();
   const ext = (cleanUrl.split('.').pop() || '').trim();
-
-  const isImage = /^(png|jpg|jpeg|gif|webp|bmp|svg)$/.test(ext);
-  const isPdf = ext === 'pdf';
+  const isImage  = /^(png|jpg|jpeg|gif|webp|bmp|svg)$/.test(ext);
+  const isPdf    = ext === 'pdf';
   const isOffice = /^(doc|docx|ppt|pptx|xls|xlsx)$/.test(ext);
 
   container.style.display = 'block';
 
-  /* ── WORD / PPT / EXCEL → Microsoft's official viewer ── */
+  /* ── WORD / PPT / EXCEL → Microsoft viewer ── */
   if (isOffice) {
     const officeSrc = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(url);
     container.innerHTML =
-      '<iframe src="' + officeSrc + '" '
-      + 'style="width:100%;height:72vh;min-height:500px;border:none;display:block;background:#fff;" title="Assignment Viewer"></iframe>';
+      '<iframe src="' + officeSrc + '" style="width:100%;height:72vh;min-height:500px;border:none;display:block;background:#fff;" title="Assignment Viewer"></iframe>';
     return;
   }
 
-  /* ── For PDF and IMAGE, fetch the file as a blob ── */
   try {
     const resp = await fetch(url, { cache: 'no-store' });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const raw = await resp.blob();
     const ctype = (resp.headers.get('content-type') || raw.type || '').toLowerCase();
 
-    /* IMAGE */
+    /* ── IMAGE ── */
     if (isImage || ctype.startsWith('image/')) {
       const blobUrl = URL.createObjectURL(raw);
       _blobUrls[containerId] = blobUrl;
@@ -1102,34 +1114,55 @@ async function loadPdfBlob(url, containerId = 'pdf-frame-container') {
       return;
     }
 
-    /* PDF (or when the type is unknown but the extension is .pdf) */
+    /* ── PDF → PDF.js se canvas pe render (mobile + desktop) ── */
     if (isPdf || ctype.includes('pdf')) {
-      const pdfBlob = (raw.type === 'application/pdf') ? raw : new Blob([raw], { type: 'application/pdf' });
-      const blobUrl = URL.createObjectURL(pdfBlob);
-      _blobUrls[containerId] = blobUrl;
-      container.innerHTML =
-        '<iframe src="' + blobUrl + '#toolbar=0&navpanes=0&scrollbar=1&view=FitH" '
-        + 'style="width:100%;height:72vh;min-height:500px;border:none;display:block;" title="Assignment Viewer"></iframe>';
+      const pdfjsLib = await ensurePdfJs();
+      const arrayBuffer = await raw.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+      container.innerHTML = '';
+      const scroller = document.createElement('div');
+      scroller.style.cssText =
+        'width:100%;height:72vh;min-height:500px;overflow:auto;background:#0d0d18;padding:10px;box-sizing:border-box;-webkit-overflow-scrolling:touch;';
+      scroller.oncontextmenu = () => false;
+      container.appendChild(scroller);
+
+      const dpr = window.devicePixelRatio || 1;
+      const availW = (scroller.clientWidth || container.clientWidth || 350) - 20;
+
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const base = page.getViewport({ scale: 1 });
+        const cssScale = availW / base.width;                 // screen width fit
+        const vp = page.getViewport({ scale: cssScale * dpr }); // sharp render
+
+        const canvas = document.createElement('canvas');
+        canvas.width = vp.width;
+        canvas.height = vp.height;
+        canvas.style.cssText =
+          'display:block;margin:0 auto 12px;width:100%;max-width:' + (base.width * cssScale) + 'px;height:auto;border-radius:6px;';
+        canvas.oncontextmenu = () => false;
+        scroller.appendChild(canvas);
+
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+      }
       return;
     }
 
-    /* any other type — inline preview not possible */
+    /* ── koi aur type ── */
     container.style.display = 'flex';
     container.innerHTML =
       '<div style="padding:30px;text-align:center;color:#cbd5e1;font-size:13px;line-height:1.7;">'
       + 'This file cannot be previewed here (type: ' + (ext || 'unknown') + ').<br><br>'
-      + '<a href="' + url + '" target="_blank" rel="noopener" style="color:#f5c200;font-weight:600;">Open in new tab →</a>'
-      + '</div>';
+      + '<a href="' + url + '" target="_blank" rel="noopener" style="color:#f5c200;font-weight:600;">Open in new tab →</a></div>';
   } catch (e) {
     container.style.display = 'flex';
     container.innerHTML =
       '<div style="padding:30px;text-align:center;color:#fc8181;font-size:13px;line-height:1.7;">'
       + 'Could not load the worksheet.<br>(' + e.message + ')<br><br>'
-      + '<a href="' + url + '" target="_blank" rel="noopener" style="color:#f5c200;font-weight:600;">Open in new tab →</a>'
-      + '</div>';
+      + '<a href="' + url + '" target="_blank" rel="noopener" style="color:#f5c200;font-weight:600;">Open in new tab →</a></div>';
   }
 }
-
 function closeViewModal() {
   document.getElementById('view-modal').style.display = 'none';
   /* free all viewer blobs from memory */

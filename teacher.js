@@ -1431,6 +1431,7 @@ function openSubReview(jsonStr) {
 }
 
 /* ✅ Build the "Upload Checked Worksheet" box in the review modal once, then keep updating it */
+/* ✅ Build the "Upload Checked Worksheet" box in the review modal once, then keep updating it */
 function mountCheckedUI(meta) {
   const saveBtn = _('srv-save-btn');
   if (!saveBtn) return;
@@ -1438,17 +1439,44 @@ function mountCheckedUI(meta) {
   if (!wrap) {
     wrap = document.createElement('div');
     wrap.id = 'srv-checked-wrap';
-    wrap.style.cssText = 'margin:14px 0;padding:14px 16px;border:1px dashed rgba(0,184,180,0.4);border-radius:10px;';
+    wrap.style.cssText = 'margin:14px 0;padding:14px 16px;border:1px dashed rgba(0,184,180,0.4);border-radius:10px;position:relative;z-index:5;';
     wrap.innerHTML =
       '<div style="font-size:12px;font-weight:700;color:var(--teal);margin-bottom:8px;">📤 Upload Checked Worksheet (student will see this)</div>'
       + '<div id="srv-checked-status" style="font-size:12px;color:var(--muted);margin-bottom:10px;">No checked file uploaded yet.</div>'
-      + '<input type="file" id="srv-checked-file" style="font-size:12px;color:var(--cream);margin-bottom:10px;display:block;max-width:100%;">'
-      + '<button id="srv-checked-btn" onclick="uploadCheckedWorksheet()" style="padding:8px 18px;background:var(--teal);border:none;border-radius:8px;color:#fff;font-family:\'DM Sans\',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;">Upload Checked File →</button>';
+      /* hidden real input — sirf JS se trigger hoga */
+      + '<input type="file" id="srv-checked-file" style="display:none;">'
+      + '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">'
+      + '  <button type="button" id="srv-choose-btn" style="padding:8px 16px;background:rgba(0,184,180,0.12);border:1px solid var(--teal);border-radius:8px;color:var(--teal);font-family:\'DM Sans\',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;">📁 Choose File</button>'
+      + '  <span id="srv-chosen-name" style="font-size:12px;color:var(--muted);">No file chosen</span>'
+      + '</div>'
+      + '<button type="button" id="srv-checked-btn" style="padding:8px 18px;background:var(--teal);border:none;border-radius:8px;color:#fff;font-family:\'DM Sans\',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;">Upload Checked File →</button>';
     saveBtn.parentNode.insertBefore(wrap, saveBtn);
+
+    /* ✅ Choose File button → hidden input ko click karao */
+    const chooseBtn = _('srv-choose-btn');
+    const fileInp = _('srv-checked-file');
+    chooseBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      fileInp.click();
+    });
+    /* file select hote hi naam dikhao */
+    fileInp.addEventListener('change', () => {
+      const f = fileInp.files[0];
+      setTxt('srv-chosen-name', f ? f.name : 'No file chosen');
+    });
+    /* Upload button */
+    _('srv-checked-btn').addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      uploadCheckedWorksheet();
+    });
   }
+
   /* reset + show the existing checked file */
   const fileInp = _('srv-checked-file');
   if (fileInp) fileInp.value = '';
+  setTxt('srv-chosen-name', 'No file chosen');
   setTxt('srv-checked-status', (meta.checkedUrl)
     ? '✓ Checked file uploaded: ' + (meta.checkedName || 'file')
     : 'No checked file uploaded yet.');
@@ -1499,11 +1527,30 @@ async function uploadCheckedWorksheet() {
 /* ════════════════════════════════════════════════
    ✅ NEW: Show the submission file in the right viewer
 ════════════════════════════════════════════════ */
+/* ✅ PDF.js ko ek hi baar load karo (mobile + desktop dono ke liye) */
+async function ensurePdfJs() {
+  if (window.pdfjsLib) return window.pdfjsLib;
+  await new Promise((resolve, reject) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    sc.onload = resolve;
+    sc.onerror = () => reject(new Error('PDF.js load failed'));
+    document.head.appendChild(sc);
+  });
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  return window.pdfjsLib;
+}
+
+/* ════════════════════════════════════════════════
+   ✅ NEW: Show the submission file in the right viewer
+   (PDF ab canvas pe render hota hai — mobile fix)
+════════════════════════════════════════════════ */
 async function renderSubmissionFile(url, fname) {
   const fileEl = _('srv-file-area');
   if (!fileEl) return;
 
-  /* free the previous blob from memory */
+  /* pichla blob free karo */
   if (_srvBlobUrl) { try { URL.revokeObjectURL(_srvBlobUrl); } catch (e) {} _srvBlobUrl = null; }
 
   if (!url) {
@@ -1515,13 +1562,13 @@ async function renderSubmissionFile(url, fname) {
   const clean = name.split('#')[0].split('?')[0];
   const ext = (clean.split('.').pop() || '').trim();
 
-  const isImage = /^(png|jpg|jpeg|gif|webp|bmp|svg)$/.test(ext);
-  const isPdf = ext === 'pdf';
+  const isImage  = /^(png|jpg|jpeg|gif|webp|bmp|svg)$/.test(ext);
+  const isPdf    = ext === 'pdf';
   const isOffice = /^(doc|docx|ppt|pptx|xls|xlsx)$/.test(ext);
 
   fileEl.innerHTML = '<div style="color:var(--muted);font-size:13px;text-align:center;"><span class="spinner" style="margin-right:8px;"></span>Loading file…</div>';
 
-  /* ── WORD / PPT / EXCEL → Microsoft's official viewer ── */
+  /* ── WORD / PPT / EXCEL → Microsoft viewer ── */
   if (isOffice) {
     const officeSrc = 'https://view.officeapps.live.com/op/embed.aspx?src=' + encodeURIComponent(url);
     fileEl.innerHTML =
@@ -1529,14 +1576,13 @@ async function renderSubmissionFile(url, fname) {
     return;
   }
 
-  /* ── For PDF and IMAGE, fetch the file as a blob ── */
   try {
     const resp = await fetch(url, { cache: 'no-store' });
     if (!resp.ok) throw new Error('HTTP ' + resp.status);
     const raw = await resp.blob();
     const ctype = (resp.headers.get('content-type') || raw.type || '').toLowerCase();
 
-    /* IMAGE */
+    /* ── IMAGE ── */
     if (isImage || ctype.startsWith('image/')) {
       const b = URL.createObjectURL(raw);
       _srvBlobUrl = b;
@@ -1545,31 +1591,53 @@ async function renderSubmissionFile(url, fname) {
       return;
     }
 
-    /* PDF */
+    /* ── PDF → PDF.js se canvas pe render (mobile + desktop) ── */
     if (isPdf || ctype.includes('pdf')) {
-      const pdfBlob = (raw.type === 'application/pdf') ? raw : new Blob([raw], { type: 'application/pdf' });
-      const b = URL.createObjectURL(pdfBlob);
-      _srvBlobUrl = b;
-      fileEl.innerHTML =
-        '<iframe src="' + b + '#toolbar=0&navpanes=0&view=FitH" style="width:100%;height:68vh;border:none;border-radius:10px;" title="Submission"></iframe>';
+      const pdfjsLib = await ensurePdfJs();
+      const arrayBuffer = await raw.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+      fileEl.innerHTML = '';
+      const scroller = document.createElement('div');
+      scroller.style.cssText =
+        'width:100%;height:68vh;overflow:auto;background:#0d0d18;padding:10px;box-sizing:border-box;border-radius:10px;-webkit-overflow-scrolling:touch;';
+      scroller.oncontextmenu = () => false;
+      fileEl.appendChild(scroller);
+
+      const dpr = window.devicePixelRatio || 1;
+      const availW = (scroller.clientWidth || fileEl.clientWidth || 350) - 20;
+
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const page = await pdf.getPage(p);
+        const base = page.getViewport({ scale: 1 });
+        const cssScale = availW / base.width;
+        const vp = page.getViewport({ scale: cssScale * dpr });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = vp.width;
+        canvas.height = vp.height;
+        canvas.style.cssText =
+          'display:block;margin:0 auto 12px;width:100%;max-width:' + (base.width * cssScale) + 'px;height:auto;border-radius:6px;';
+        canvas.oncontextmenu = () => false;
+        scroller.appendChild(canvas);
+
+        await page.render({ canvasContext: canvas.getContext('2d'), viewport: vp }).promise;
+      }
       return;
     }
 
-    /* any other type */
+    /* ── koi aur type ── */
     fileEl.innerHTML =
       '<div style="padding:24px;text-align:center;color:#cbd5e1;font-size:13px;line-height:1.7;">'
       + 'This file cannot be previewed here (' + (ext || 'unknown') + ').<br><br>'
-      + '<a href="' + url + '" target="_blank" rel="noopener" style="color:var(--teal);font-weight:600;">Open in new tab →</a>'
-      + '</div>';
+      + '<a href="' + url + '" target="_blank" rel="noopener" style="color:var(--teal);font-weight:600;">Open in new tab →</a></div>';
   } catch (e) {
     fileEl.innerHTML =
       '<div style="padding:24px;text-align:center;color:#e07070;font-size:13px;line-height:1.7;">'
       + 'Could not load the file.<br>(' + e.message + ')<br><br>'
-      + '<a href="' + url + '" target="_blank" rel="noopener" style="color:var(--teal);font-weight:600;">Open in new tab →</a>'
-      + '</div>';
+      + '<a href="' + url + '" target="_blank" rel="noopener" style="color:var(--teal);font-weight:600;">Open in new tab →</a></div>';
   }
 }
-
 function closeSubReview() {
   const modal = _('sub-review-modal');
   if (modal) modal.style.display = 'none';

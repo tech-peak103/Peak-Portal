@@ -52,7 +52,9 @@ body {
     color: var(--cream);
     min-height: 100vh;
 }
-
+a{
+    text-decoration: none;
+}
 .screen {
     display: none;
     min-height: 100vh;

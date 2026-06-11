@@ -44,9 +44,7 @@ function feeMatches(entry, grade, board) {
 
 function feeNum(entry, classType) {
   if (!entry) return 0;
-  const keys = classType === 'individual' ?
-    ['individual_fee', 'individual-fee', 'individualFee', 'fee_individual', 'individual'] :
-    ['group_fee', 'group-fee', 'groupFee', 'fee_group', 'group'];
+  const keys = classType === 'individual' ? ['individual_fee', 'individual-fee', 'individualFee', 'fee_individual', 'individual'] : ['group_fee', 'group-fee', 'groupFee', 'fee_group', 'group'];
   for (const k of keys) {
     if (entry[k] != null) return Number(entry[k]) || 0;
   }
@@ -771,12 +769,13 @@ function renderStudentTable(filter = '') {
 function filterStudents(v) {
   renderStudentTable(v);
 }
+
 function filterMarkStudents(v) {
   const q = (v || '').toLowerCase().trim();
   document.querySelectorAll('#mark-rows .mark-row').forEach(r => {
     const stu = CUR_STUDENTS.find(s => s.id === r.dataset.sid);
-    const name  = (stu && stu.full_name ? stu.full_name : '').toLowerCase();
-    const uname = (stu && stu.username  ? stu.username  : '').toLowerCase();
+    const name = (stu && stu.full_name ? stu.full_name : '').toLowerCase();
+    const uname = (stu && stu.username ? stu.username : '').toLowerCase();
     const match = !q || name.includes(q) || uname.includes(q);
     r.style.display = match ? '' : 'none';
   });
@@ -1333,16 +1332,24 @@ async function renderMarkRows() {
           <div style="font-size:11.5px;color:var(--muted)">${s.username ? '@' + s.username : ''}</div>
         </div>
       </div>
-      <input class="m-score _sc" type="number" min="0"
-             placeholder="—" value="${score}" style="${scoreColor}">
+     <input class="m-score _sc" type="number" min="0"
+             placeholder="—" value="${score}" style="${scoreColor}pointer-events:none;background:rgba(0,0,0,0.04);" readonly disabled>
       <div style="font-size:12px;color:var(--muted)">/ ${SEL_ASSIGN.max_score}</div>
-      <input class="m-remarks _rm" placeholder="Add remarks…" value="${remark}">
+      <input class="m-remarks _rm" placeholder="—" value="${remark}" style="pointer-events:none;background:rgba(0,0,0,0.04);" readonly disabled>
       <div class="m-dot ${dotCls}" title="${hasSaved ? '✓ Saved · ' + score + '/' + SEL_ASSIGN.max_score : 'Not saved yet'}"></div>
     </div>`;
   }).join('');
+  /* ✅ Mark Scores ab view-only — Save button hide + helper note */
+  const _saveBtn = document.querySelector('#pane-mark .save-btn');
+  if (_saveBtn) _saveBtn.style.display = 'none';
+  if (cont) cont.insertAdjacentHTML('afterbegin',
+    '<div style="font-size:12px;color:var(--muted);background:rgba(0,184,180,0.06);border:1px solid rgba(0,184,180,0.18);border-radius:8px;padding:10px 14px;margin-bottom:12px;">' +
+    'View-only — for grading <strong>Submissions → Review & Comment</strong> </div>');
 }
 
 async function saveAllScores() {
+  toast('Mark Scores is view-only. Marks given by Review & Comment.', 'err');
+  return;
   if (!SEL_ASSIGN) {
     toast('Please select an assignment.', 'err');
     return;
@@ -1508,10 +1515,157 @@ function openSubReview(jsonStr) {
 
   /* ✅ Checked-worksheet upload box (modal me JS se inject) */
   mountCheckedUI(meta);
+  mountScoreUI(meta);
 
   /* ✅ Show the file according to its type (PDF / Word / image / etc.) */
   renderSubmissionFile(meta.url, meta.fname);
 }
+
+
+/* ✅ Review modal me Marks box inject karo + saved score load karo */
+async function mountScoreUI(meta) {
+  const saveBtn = _('srv-save-btn');
+  if (!saveBtn) return;
+  const a = CUR_ASSIGNS.find(x => x.id === meta.aid) || SEL_ASSIGN;
+  const maxScore = a ? a.max_score : 0;
+
+  let wrap = _('srv-score-wrap');
+  if (!wrap) {
+    wrap = document.createElement('div');
+    wrap.id = 'srv-score-wrap';
+    wrap.style.cssText = 'margin:14px 0;padding:14px 16px;border:1px solid rgba(76,175,130,0.4);border-radius:10px;position:relative;z-index:5;';
+    wrap.innerHTML =
+      '<div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:10px;">✏️ Marks (will appear in the student dashboard)</div>' +
+      '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;">' +
+      '  <input type="number" id="srv-score-input" min="0" placeholder="—" style="width:90px;padding:8px 10px;background:rgba(255,255,255,0.95);border:1px solid rgba(76,175,130,0.4);border-radius:8px;font-size:14px;font-weight:700;color:#0d2424;outline:none;">' +
+      '  <span id="srv-score-max" style="font-size:13px;color:var(--muted);">/ ' + maxScore + '</span>' +
+      '</div>' +
+      '<input type="text" id="srv-score-remark" placeholder="Remarks (optional)…" style="width:100%;padding:8px 10px;background:rgba(255,255,255,0.95);border:1px solid rgba(76,175,130,0.3);border-radius:8px;font-size:12.5px;color:#0d2424;outline:none;box-sizing:border-box;margin-bottom:10px;">' +
+      '<button type="button" id="srv-score-btn" style="padding:8px 18px;background:var(--green);border:none;border-radius:8px;color:#fff;font-family:\'DM Sans\',sans-serif;font-size:12.5px;font-weight:700;cursor:pointer;">Save Marks →</button>' +
+      '<div id="srv-score-status" style="font-size:11.5px;color:var(--muted);margin-top:8px;"></div>';
+    const checkedWrap = _('srv-checked-wrap');
+    saveBtn.parentNode.insertBefore(wrap, checkedWrap || saveBtn);
+    _('srv-score-btn').addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      saveScoreFromReview();
+    });
+  } else {
+    setTxt('srv-score-max', '/ ' + maxScore);
+  }
+
+  const inp = _('srv-score-input'),
+    rem = _('srv-score-remark');
+  if (inp) inp.value = '';
+  if (rem) rem.value = '';
+  setTxt('srv-score-status', 'Loading saved marks…');
+
+  const btn = _('srv-score-btn');
+  btn._sid = meta.sid;
+  btn._title = a ? a.title : '';
+  btn._max = maxScore;
+
+  if (IS_LIVE && CURR && a) {
+    try {
+      const {
+        data: existing
+      } = await sb.from('assessments')
+        .select('student_score, remarks')
+        .eq('subject_id', CURR.id).eq('name', a.title).eq('student_id', meta.sid)
+        .limit(1);
+      if (existing && existing.length) {
+        if (inp) inp.value = existing[0].student_score ?? '';
+        if (rem) rem.value = existing[0].remarks || '';
+        setTxt('srv-score-status', '✓ Saved: ' + existing[0].student_score + '/' + maxScore);
+      } else {
+        setTxt('srv-score-status', 'No marks saved yet.');
+      }
+    } catch (e) {
+      setTxt('srv-score-status', '');
+    }
+  }
+}
+
+/* ✅ Modal se marks save → assessments table → student dashboard me reflect */
+async function saveScoreFromReview() {
+  const btn = _('srv-score-btn');
+  if (!btn) return;
+  const sid = btn._sid,
+    title = btn._title,
+    maxScore = Number(btn._max) || 0;
+  const scoreVal = _('srv-score-input').value;
+  const remark = (_('srv-score-remark').value || '').trim();
+
+  if (scoreVal === '') {
+    toast('Please enter a score.', 'err');
+    return;
+  }
+  const score = parseFloat(scoreVal);
+  if (isNaN(score)) {
+    toast('Score must be a number.', 'err');
+    return;
+  }
+  if (maxScore > 0 && score > maxScore) {
+    toast('Score ' + maxScore + ' se zyada nahi ho sakta.', 'err');
+    return;
+  }
+  if (!CURR || !title) {
+    toast('Assignment info missing.', 'err');
+    return;
+  }
+  if (!IS_LIVE) {
+    toast('⚠ Supabase is not connected.', 'err');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Saving…';
+  try {
+    // purani row hatao, nayi daalo (Mark Scores jaisa hi pattern)
+    await sb.from('assessments').delete()
+      .eq('subject_id', CURR.id).eq('name', title).eq('student_id', sid);
+
+    const {
+      error: insErr
+    } = await sb.from('assessments').insert({
+      student_id: sid,
+      subject_id: CURR.id,
+      name: title,
+      student_score: score,
+      class_avg_score: 0,
+      remarks: remark,
+      conducted_month: new Date().toLocaleString('default', {
+        month: 'long',
+        year: 'numeric'
+      }),
+      conducted_at: new Date().toISOString()
+    });
+    if (insErr) throw insErr;
+
+    // class avg dobara compute karke saari rows update karo (chart consistent rahe)
+    const {
+      data: allRows
+    } = await sb.from('assessments')
+      .select('student_score').eq('subject_id', CURR.id).eq('name', title);
+    if (allRows && allRows.length) {
+      const vals = allRows.map(r => Number(r.student_score)).filter(n => !isNaN(n));
+      const avg = vals.length ? Math.round(vals.reduce((a, b) => a + b, 0) / vals.length) : 0;
+      await sb.from('assessments').update({
+          class_avg_score: avg
+        })
+        .eq('subject_id', CURR.id).eq('name', title);
+    }
+
+    setTxt('srv-score-status', '✓ Saved: ' + score + '/' + maxScore);
+    toast('✓ Marks saved! Student dashboard me dikh jayega.', 'ok');
+  } catch (e) {
+    toast('Save failed: ' + e.message, 'err');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save Marks →';
+  }
+}
+
 
 /* ✅ Build the "Upload Checked Worksheet" box in the review modal once, then keep updating it */
 /* ✅ Build the "Upload Checked Worksheet" box in the review modal once, then keep updating it */

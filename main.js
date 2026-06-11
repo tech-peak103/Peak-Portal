@@ -129,6 +129,60 @@ function togglePass() {
   i.type = i.type === 'password' ? 'text' : 'password';
 }
 
+/* ── Watermark helpers ── */
+function nowStamp() {
+  const d = new Date(), pad = n => String(n).padStart(2, '0');
+  return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + '/' + d.getFullYear()
+       + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+}
+
+function studentWatermarkText() {
+  const name = (PROFILE && PROFILE.full_name) ? PROFILE.full_name : 'Student';
+  // 👇 email field verify karein — warna username/roll pe fallback
+  const id = (PROFILE && (PROFILE.email || PROFILE.username || PROFILE.roll_number)) || '';
+  return [name.toUpperCase(), id, nowStamp()].filter(Boolean).join('  •  ');
+}
+
+function wmTiledOverlay(tag, text) {
+  const safe = String(text)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  const tile =
+    "<svg xmlns='http://www.w3.org/2000/svg' width='360' height='210'>"
+    + "<text x='10' y='110' transform='rotate(-30 180 105)' "
+    + "fill='rgba(255,255,255,0.16)' font-size='13' font-weight='700' "
+    + "font-family='Arial, sans-serif' letter-spacing='1'>" + safe + "</text></svg>";
+  let b64;
+  try { b64 = btoa(unescape(encodeURIComponent(tile))); } catch (e) { b64 = btoa(tile); }
+  const uri = 'data:image/svg+xml;base64,' + b64;
+  return "<div class='wm-overlay' data-wm='" + tag + "' "
+    + "style=\"position:absolute;inset:0;z-index:40;pointer-events:none;"
+    + "background-image:url('" + uri + "');background-repeat:repeat;\"></div>";
+}
+
+let _wmTimer = null;
+function applyModalWatermark() {
+  const body = document.getElementById('view-modal-body');
+  if (!body) return;
+  let card = body;
+  while (card && card.parentElement && card.parentElement.id !== 'view-modal') card = card.parentElement;
+  if (!card) card = body;
+  if (getComputedStyle(card).position === 'static') card.style.position = 'relative';
+
+  function paint() {
+    const old = card.querySelector(".wm-overlay[data-wm='modal']");
+    if (old) old.remove();
+    card.insertAdjacentHTML('beforeend', wmTiledOverlay('modal', studentWatermarkText()));
+  }
+  paint();
+  if (_wmTimer) clearInterval(_wmTimer);
+  _wmTimer = setInterval(() => {
+    const m = document.getElementById('view-modal');
+    if (!m || m.style.display !== 'flex') return;
+    paint();   // timestamp update
+  }, 15000);
+}
+
 function fmtDate(d) {
   if (!d) return '—';
   try { return new Date(d).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }); }
@@ -1031,6 +1085,9 @@ async function viewAssignment(assignId) {
   const wName = (PROFILE.full_name || 'Student').toUpperCase();
   const wRoll = PROFILE.roll_number || '';
   const wText = wName + (wRoll ? '  |  ' + wRoll : '');
+  const wUser = PROFILE.username ? '@' + PROFILE.username : (wRoll || '');
+  const wStamp = (() => { const d = new Date(), p = n => String(n).padStart(2, '0');
+    return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()); })();
   let contentHTML = '';
   if (a.file_url) {
     /* ✅ Show a placeholder first; the PDF loads later as a blob (to prevent downloads) */
@@ -1057,8 +1114,8 @@ async function viewAssignment(assignId) {
   }
   const teacherComment = (sub && sub.teacher_remarks && sub.teacher_remarks.trim())
     ? '<div style="margin-top:12px;padding:14px 16px;background:rgba(0,184,180,0.08);border:1px solid rgba(0,184,180,0.28);border-radius:10px;">'
-      + '<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--teal);font-weight:700;margin-bottom:6px;">📝 Teacher\'s Comment</div>'
-      + '<div style="font-size:13.5px;color:var(--cream);line-height:1.65;">' + sub.teacher_remarks + '</div></div>'
+      + '<div style="font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--navy);font-weight:700;margin-bottom:6px;">📝 Teacher\'s Comment</div>'
+      + '<div style="font-size:13.5px;color:var(--navy);line-height:1.65;">' + sub.teacher_remarks + '</div></div>'
     : '';
   const footerHTML = sub
     ? '<div style="padding:14px 18px;background:rgba(72,199,142,0.1);border:1px solid rgba(72,199,142,0.3);border-radius:10px;display:flex;align-items:center;gap:12px;"><span style="font-size:22px;">✅</span><div><div style="color:#68d391;font-weight:600;">Assignment Submitted</div><div style="font-size:12px;color:var(--muted);">' + new Date(sub.submitted_at).toLocaleString('en-IN') + '</div></div></div>' + teacherComment
@@ -1075,11 +1132,19 @@ async function viewAssignment(assignId) {
   document.getElementById('view-modal-body').innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">'
     + '<div><div style="font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--muted);margin-bottom:5px;">' + (a.type || 'Assignment') + '</div>'
-    + '<div style="font-family:\'Cormorant Garamond\',serif;font-size:22px;font-weight:700;color:var(--cream);">' + a.title + '</div></div>'
+    + '<div style="font-family:\'Cormorant Garamond\',serif;font-size:22px;font-weight:700;color:var(--muted);">' + a.title + '</div></div>'
     + '<button onclick="closeViewModal()" style="background:rgba(255,255,255,0.07);border:none;color:var(--muted);font-size:18px;cursor:pointer;border-radius:50%;width:34px;height:34px;">&times;</button>'
     + '</div>'
+    + '</div>'
     + '<div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">'
-    + duePill + '<span style="background:rgba(255,255,255,0.07);color:var(--cream);padding:4px 12px;border-radius:20px;font-size:12px;">Max: ' + a.max_score + ' marks</span>'
+    + duePill + '<span style="background:rgba(244, 238, 238, 0.94);color:var(--cream);padding:4px 12px;border-radius:20px;font-size:12px;">Max: ' + a.max_score + ' marks</span>'
+    + '</div>'
+   + '<div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;padding:9px 14px;'
+    + 'background:rgba(235, 244, 246, 0.94);border:1px solid rgba(216,167,62,0.32);border-radius:9px;'
+    + 'font-size:12px;color:var(--gold);line-height:1.5;">'
+    + '🔒 Licensed to <strong style="color:var(--cream);">' + (PROFILE.full_name || 'Student') + '</strong>'
+    + (wUser ? ' <span style="opacity:.85;">(' + wUser + ')</span>' : '')
+    + ' - <span style="opacity:.85;">' + wStamp + '</span> — sharing is traceable to you.'
     + '</div>'
     + contentHTML
     + '<div style="margin-top:18px;">' + footerHTML + '</div>'
@@ -1096,6 +1161,8 @@ async function viewAssignment(assignId) {
   /* ✅ Show both the worksheet and (if any) the checked worksheet as blobs */
   if (a.file_url) loadPdfBlob(a.file_url, 'pdf-frame-container');
   if (sub && sub.checked_file_url) loadPdfBlob(sub.checked_file_url, 'checked-frame-container');
+document.getElementById('view-modal').style.display = 'flex';
+applyModalWatermark();
 }
 
 /* ════════════════════════════════════════════════
@@ -1208,6 +1275,7 @@ async function loadPdfBlob(url, containerId = 'pdf-frame-container') {
 }
 function closeViewModal() {
   document.getElementById('view-modal').style.display = 'none';
+  if (_wmTimer) { clearInterval(_wmTimer); _wmTimer = null; }
   /* free all viewer blobs from memory */
   if (_currentBlobUrl) { try { URL.revokeObjectURL(_currentBlobUrl); } catch (e) {} _currentBlobUrl = null; }
   Object.keys(_blobUrls).forEach(k => { try { URL.revokeObjectURL(_blobUrls[k]); } catch (e) {} });

@@ -880,34 +880,62 @@ let _currentBlobUrl = null;  // ✅ to clean up the previous blob
 let _blobUrls = {};          // ✅ a separate blob for each viewer container
 
 (function applyProtections() {
+  const modalOpen = () => {
+    const m = document.getElementById('view-modal');
+    return m && m.style.display === 'flex';
+  };
+
   document.addEventListener('contextmenu', function (e) {
-    if (document.getElementById('view-modal') && document.getElementById('view-modal').style.display === 'flex') e.preventDefault();
-  });
-  document.addEventListener('keydown', function (e) {
-    const modal = document.getElementById('view-modal');
-    if (!modal || modal.style.display !== 'flex') return;
-    const key = e.key.toLowerCase();
-    if ((e.ctrlKey || e.metaKey) && ['s', 'p', 'c', 'a', 'u'].includes(key)) { e.preventDefault(); return false; }
-    if (key === 'printscreen' || key === 'f12') { e.preventDefault(); return false; }
+    if (modalOpen()) e.preventDefault();
   });
 
-  /* ✅ Screenshot deterrent: when the tab/window loses focus (snipping tool, alt-tab),
-     blur the modal content; clear it when focus returns. */
-  function _blurGuard() {
-    const m = document.getElementById('view-modal');
-    if (!m || m.style.display !== 'flex') return;
+  // Ctrl/Cmd shortcuts (save, print, copy, select-all, view-source)
+  document.addEventListener('keydown', function (e) {
+    if (!modalOpen()) return;
+    const key = (e.key || '').toLowerCase();
+    if ((e.ctrlKey || e.metaKey) && ['s', 'p', 'c', 'a', 'u'].includes(key)) {
+      e.preventDefault(); return false;
+    }
+    if (key === 'f12') { e.preventDefault(); return false; }
+  });
+
+  // ---- Blur guard: tab switch / window focus loss (Snipping Tool, alt-tab) ----
+  function blurGuard() {
+    if (!modalOpen()) return;
     const b = document.getElementById('view-modal-body');
     if (b) b.style.filter = 'blur(22px)';
   }
-  function _unblurGuard() {
+  function unblurGuard() {
     const b = document.getElementById('view-modal-body');
     if (b) b.style.filter = '';
   }
-  document.addEventListener('visibilitychange', () => { document.hidden ? _blurGuard() : _unblurGuard(); });
-  window.addEventListener('blur', _blurGuard);
-  window.addEventListener('focus', _unblurGuard);
-})();
+  document.addEventListener('visibilitychange', () => { document.hidden ? blurGuard() : unblurGuard(); });
+  window.addEventListener('blur', blurGuard);
+  window.addEventListener('focus', unblurGuard);
 
+  // ---- PrintScreen deterrent (NOT a guarantee — see notes below) ----
+  async function handlePrintScreen() {
+    if (!modalOpen()) return;
+    const b = document.getElementById('view-modal-body');
+    if (b) {                       // content ko thodi der blur kar do
+      b.style.filter = 'blur(22px)';
+      setTimeout(() => { b.style.filter = ''; }, 1200);
+    }
+    try {                          // jo abhi clipboard me gaya use overwrite karne ki koshish
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(' ');
+      }
+    } catch (err) { /* focus/permission na ho to fail ho sakta hai */ }
+  }
+
+  // Windows Chrome/Edge me PrtSc aksar keyup pe fire hota hai, keydown pe nahi
+  document.addEventListener('keyup', function (e) {
+    if (e.key === 'PrintScreen') handlePrintScreen();
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'PrintScreen') e.preventDefault();
+  });
+})();
 async function loadAssignments(subjectId) {
   const section = document.getElementById('assign-section');
   const list = document.getElementById('assign-list-student');

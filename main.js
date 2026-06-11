@@ -899,7 +899,7 @@ let _blobUrls = {};          // ✅ a separate blob for each viewer container
     if (key === 'f12') { e.preventDefault(); return false; }
   });
 
-  // ---- Blur guard: tab switch / window focus loss (Snipping Tool, alt-tab) ----
+  // ---- Blur guard: tab switch / window focus loss ----
   function blurGuard() {
     if (!modalOpen()) return;
     const b = document.getElementById('view-modal-body');
@@ -913,29 +913,44 @@ let _blobUrls = {};          // ✅ a separate blob for each viewer container
   window.addEventListener('blur', blurGuard);
   window.addEventListener('focus', unblurGuard);
 
-  // ---- PrintScreen deterrent (NOT a guarantee — see notes below) ----
-  async function handlePrintScreen() {
+  // ---- Content ko thodi der blur karne ka common helper ----
+  function flashBlur(ms = 1200) {
     if (!modalOpen()) return;
     const b = document.getElementById('view-modal-body');
-    if (b) {                       // content ko thodi der blur kar do
-      b.style.filter = 'blur(22px)';
-      setTimeout(() => { b.style.filter = ''; }, 1200);
-    }
-    try {                          // jo abhi clipboard me gaya use overwrite karne ki koshish
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        await navigator.clipboard.writeText(' ');
-      }
-    } catch (err) { /* focus/permission na ho to fail ho sakta hai */ }
+    if (!b) return;
+    b.style.filter = 'blur(22px)';
+    setTimeout(() => { b.style.filter = ''; }, ms);
   }
 
-  // Windows Chrome/Edge me PrtSc aksar keyup pe fire hota hai, keydown pe nahi
+  // ---- Windows: PrintScreen deterrent (clipboard overwrite + blur) ----
+  async function handlePrintScreen() {
+    if (!modalOpen()) return;
+    flashBlur();
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(' ');  // jo capture hua use overwrite karne ki koshish
+      }
+    } catch (err) { /* secure context / focus na ho to fail ho sakta hai */ }
+  }
   document.addEventListener('keyup', function (e) {
     if (e.key === 'PrintScreen') handlePrintScreen();
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'PrintScreen') e.preventDefault();
   });
+
+  // ---- Mac: Cmd+Shift+3 / 4 / 5 detect (sirf blur — clipboard yahan kaam ka nahi) ----
+  document.addEventListener('keydown', function (e) {
+    if (!modalOpen()) return;
+    // Mac screenshot combos: metaKey (Cmd) + shiftKey + 3/4/5
+    if (e.metaKey && e.shiftKey && ['3', '4', '5'].includes(e.key)) {
+      flashBlur();
+      // Note: e.preventDefault() yahan aksar bekaar hai, OS pehle hi intercept kar leta hai
+    }
+  });
 })();
+
+
 async function loadAssignments(subjectId) {
   const section = document.getElementById('assign-section');
   const list = document.getElementById('assign-list-student');

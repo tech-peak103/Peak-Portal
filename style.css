@@ -7,21 +7,7 @@
   padding: 0
 }
 
-/* :root {
-  --navy: #0d1b2a;
-  --navy-mid: #14263a;
-  --navy-lt: #1e3450;
-  --gold: #c9a84c;
-  --gold-lt: #e8c97e;
-  --cream: #f5f0e8;
-  --muted: #8aa0b8;
-  --green: #4caf82;
-  --red: #e07070;
-  --orange: #e8924a;
-  --card: #172740;
-  --border: rgba(201, 168, 76, .18);
-  --border2: rgba(255, 255, 255, .05);
-} */
+
 :root {
   --navy: #ffffff;
   /* main background → pura white */
